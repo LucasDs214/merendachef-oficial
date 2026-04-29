@@ -34,8 +34,13 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IEmailService, MockEmailService>();
 
 builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
-    p.WithOrigins("http://localhost:3000", "http://localhost:5173")
-     .AllowAnyHeader().AllowAnyMethod()));
+    p.WithOrigins(
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://10.200.15.225:3000"   // <- adicione esta linha
+    )
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
 
 var app = builder.Build();
 
