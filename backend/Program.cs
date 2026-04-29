@@ -64,11 +64,15 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
+//comentado por hora para testes com swagger
+/*if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+}*/
+
+app.UseSwagger();
+    app.UseSwaggerUI();
 
 app.UseStaticFiles();
 app.UseCors();
