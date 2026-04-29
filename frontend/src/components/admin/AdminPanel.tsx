@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { adminApi } from '../../utils/api';
 import type { InscricaoAdmin, RankingItem } from '../../types';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 type Tab = 'inscricoes' | 'ranking';
 
 export function AdminPanel() {
@@ -163,6 +165,7 @@ export function AdminPanel() {
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+
               <section>
                 <h3 className="font-bold text-gray-700 mb-2">Candidato</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -171,10 +174,37 @@ export function AdminPanel() {
                   ))}
                 </div>
               </section>
+
               <section>
                 <h3 className="font-bold text-gray-700 mb-2">Receita</h3>
-                <p className="text-sm text-gray-600">{selected.receita.descricao}</p>
+                <p className="text-sm text-gray-600 mb-3">{selected.receita.descricao}</p>
+
+                {selected.receita.foto && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Foto do Prato</p>
+                    <img
+                      src={`${API_URL}/uploads/${selected.receita.foto}`}
+                      alt="Foto da receita"
+                      className="rounded-lg max-h-48 object-cover border"
+                    />
+                  </div>
+                )}
+
+                {selected.receita.comprovante && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
+                    
+                      href={`${API_URL}/uploads/${selected.receita.comprovante}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition"
+                    >
+                      📄 Visualizar Comprovante
+                    </a>
+                  </div>
+                )}
               </section>
+
               <section>
                 <h3 className="font-bold text-gray-700 mb-2">Ingredientes ({selected.ingredientes.length})</h3>
                 <div className="flex flex-wrap gap-2">
@@ -187,7 +217,6 @@ export function AdminPanel() {
                 </div>
               </section>
 
-              {/* Ações */}
               {selected.status === 'Pendente' && (
                 <section className="border-t pt-4 space-y-3">
                   <h3 className="font-bold text-gray-700">Habilitação Técnica</h3>
@@ -235,6 +264,7 @@ export function AdminPanel() {
                   </button>
                 </section>
               )}
+
             </div>
           </div>
         </div>
