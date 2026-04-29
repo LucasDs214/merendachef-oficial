@@ -5,10 +5,10 @@ ARG VITE_API_URL=http://10.200.15.225:8080
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN CI=false npm run build
+RUN NODE_OPTIONS=--max-old-space-size=512 npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
