@@ -177,35 +177,8 @@ export function AdminPanel() {
 
               <section>
                 <h3 className="font-bold text-gray-700 mb-2">Receita</h3>
-                <p className="text-sm text-gray-600 mb-3">{selected.receita.descricao}</p>
-
-                {selected.receita.foto && (
-                  <div className="mb-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">Foto do Prato</p>
-                    <img
-                      src={`${API_URL}/uploads/${selected.receita.foto}`}
-                      alt="Foto da receita"
-                      className="rounded-lg max-h-48 object-cover border"
-                    />
-                  </div>
-                )}
-
-                {selected.receita.comprovante && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
-                    
-                      href={`${API_URL}/uploads/${selected.receita.comprovante}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition"
-                    >
-                      📄 Visualizar Comprovante
-                    </a>
-                  </div>
-                )}
+                <p className="text-sm text-gray-600">{selected.receita.descricao}</p>
               </section>
-
-              <section>
                 <h3 className="font-bold text-gray-700 mb-2">Ingredientes ({selected.ingredientes.length})</h3>
                 <div className="flex flex-wrap gap-2">
                   {selected.ingredientes.map(i => (
