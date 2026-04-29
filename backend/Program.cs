@@ -33,14 +33,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IEmailService, MockEmailService>();
 
+// CORS — origens via variável de ambiente (seguro para produção pública)
+var allowedOrigins = builder.Configuration
+    .GetSection("AllowedOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
-    p.WithOrigins(
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://10.200.15.225:3000"   // <- adicione esta linha
-    )
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
+    p.WithOrigins(allowedOrigins)
+     .AllowAnyHeader()
+     .AllowAnyMethod()));
 
 var app = builder.Build();
 
@@ -50,7 +51,6 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 
-    // Seed admin padrão se não existir
     if (!db.Admins.Any())
     {
         db.Admins.Add(new MerendaChef.Api.Models.Admin
