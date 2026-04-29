@@ -93,7 +93,6 @@ export function AdminPanel() {
                 </button>
               ))}
             </div>
-
             {loading ? (
               <div className="text-center py-12 text-gray-500">Carregando...</div>
             ) : (
@@ -156,7 +155,6 @@ export function AdminPanel() {
         )}
       </div>
 
-      {/* Modal Detalhes */}
       {selected && (
         <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50" onClick={() => setSelected(null)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
@@ -165,20 +163,36 @@ export function AdminPanel() {
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-
-              <section>
+              <div>
                 <h3 className="font-bold text-gray-700 mb-2">Candidato</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {Object.entries(selected.candidato).map(([k, v]) => (
                     <div key={k}><span className="text-gray-500">{k}:</span> <span className="font-medium">{v}</span></div>
                   ))}
                 </div>
-              </section>
+              </div>
 
-              <section>
+              <div>
                 <h3 className="font-bold text-gray-700 mb-2">Receita</h3>
-                <p className="text-sm text-gray-600">{selected.receita.descricao}</p>
-              </section>
+                <p className="text-sm text-gray-600 mb-3">{selected.receita.descricao}</p>
+                {selected.receita.foto && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Foto do Prato</p>
+                    <img src={`${API_URL}/uploads/${selected.receita.foto}`} alt="Foto da receita" className="rounded-lg max-h-48 object-cover border" />
+                  </div>
+                )}
+                {selected.receita.comprovante && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
+                    <a href={`${API_URL}/uploads/${selected.receita.comprovante}`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
+                      📄 Visualizar Comprovante
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <h3 className="font-bold text-gray-700 mb-2">Ingredientes ({selected.ingredientes.length})</h3>
                 <div className="flex flex-wrap gap-2">
                   {selected.ingredientes.map(i => (
@@ -188,10 +202,10 @@ export function AdminPanel() {
                     </span>
                   ))}
                 </div>
-              </section>
+              </div>
 
               {selected.status === 'Pendente' && (
-                <section className="border-t pt-4 space-y-3">
+                <div className="border-t pt-4 space-y-3">
                   <h3 className="font-bold text-gray-700">Habilitação Técnica</h3>
                   <button onClick={() => habilitar(selected.id)}
                     className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700">
@@ -206,11 +220,11 @@ export function AdminPanel() {
                       Eliminar
                     </button>
                   </div>
-                </section>
+                </div>
               )}
 
               {selected.status === 'Habilitada' && (
-                <section className="border-t pt-4">
+                <div className="border-t pt-4">
                   <h3 className="font-bold text-gray-700 mb-3">Lançar Notas (0–50 por critério)</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
@@ -235,9 +249,8 @@ export function AdminPanel() {
                     className="mt-3 w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900">
                     💾 Salvar Notas
                   </button>
-                </section>
+                </div>
               )}
-
             </div>
           </div>
         </div>
