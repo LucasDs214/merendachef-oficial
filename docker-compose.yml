@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: merendachef_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: merendachef
+      POSTGRES_USER: merendachef_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-MerendaChef@2025!}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merendachef_user -d merendachef"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: merendachef_api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=merendachef;Username=merendachef_user;Password=${DB_PASSWORD:-MerendaChef@2025!}"
+      Jwt__Secret: ${JWT_SECRET:-MerendaChefSuperSecretKey2025!XYZ}
+      Jwt__Issuer: MerendaChef
+      Jwt__Audience: MerendaChefUsers
+      Email__SmtpHost: ${SMTP_HOST:-smtp.mailtrap.io}
+      Email__SmtpPort: ${SMTP_PORT:-587}
+      Email__User: ${SMTP_USER:-}
+      Email__Password: ${SMTP_PASS:-}
+      Email__From: noreply@merendachef.faetec.rj.gov.br
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080
+    container_name: merendachef_web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  uploads:
