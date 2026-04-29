@@ -52,7 +52,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8080
+        VITE_API_URL: http://10.200.15.225:8080
     container_name: merendachef_web
     restart: unless-stopped
     ports:
