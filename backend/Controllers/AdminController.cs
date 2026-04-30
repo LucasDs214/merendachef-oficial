@@ -156,11 +156,43 @@ public class AdminController : ControllerBase
         return Ok(rankingOrdenado);
     }
 
+    // PATCH /api/admin/inscricoes/{id}/convocar
+    [HttpPatch("inscricoes/{id:guid}/convocar")]
+    public async Task<IActionResult> Convocar(Guid id, [FromBody] ConvocarDto dto)
+    {
+        var inscricao = await _db.Inscricoes
+            .Include(i => i.Candidato)
+            .FirstOrDefaultAsync(i => i.Id == id);
+    
+        if (inscricao == null) return NotFound();
+        if (inscricao.Status != StatusInscricao.Habilitada)
+            return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
+    
+        inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
+        inscricao.DataSegundaFase = dto.DataSegundaFase;
+        inscricao.LocalSegundaFase = dto.LocalSegundaFase;
+        inscricao.ConvocadoEm = DateTime.UtcNow;
+        inscricao.AtualizadaEm = DateTime.UtcNow;
+    
+        await _db.SaveChangesAsync();
+    
+        await _email.EnviarConvocacaoSegundaFaseAsync(
+            inscricao.Candidato.Email,
+            inscricao.Candidato.Nome,
+            inscricao.NomeReceita,
+            dto.DataSegundaFase,
+            dto.LocalSegundaFase
+        );
+    
+        return Ok(new { message = "Candidato convocado com sucesso!" });
+    }
+
     private static bool ValidarNota(decimal nota) => nota >= 0 && nota <= 50;
 
     private static string MaskCpf(string cpf) =>
         cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
 }
 
+public record ConvocarDto(DateTime DataSegundaFase, string LocalSegundaFase);
 public record EliminarDto(string Motivo);
 public record NotasDto(decimal Viabilidade, decimal Criatividade, decimal CulturaRegional, decimal AlimentosInNatura);
