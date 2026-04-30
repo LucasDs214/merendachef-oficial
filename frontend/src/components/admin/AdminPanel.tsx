@@ -3,8 +3,6 @@ import { adminApi } from '../../utils/api';
 import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const [modalConvocar, setModalConvocar] = useState(false);
-const [dadosConvocacao, setDadosConvocacao] = useState({ data: '', local: '' });
 
 type Tab = 'inscricoes' | 'ranking';
 
@@ -17,6 +15,8 @@ export function AdminPanel() {
   const [selected, setSelected] = useState<InscricaoAdmin | null>(null);
   const [motivoElim, setMotivoElim] = useState('');
   const [notas, setNotas] = useState({ viabilidade: 0, criatividade: 0, culturaRegional: 0, alimentosInNatura: 0 });
+  const [modalConvocar, setModalConvocar] = useState(false);
+  const [dadosConvocacao, setDadosConvocacao] = useState({ data: '', local: '' });
 
   const carregar = async () => {
     setLoading(true);
@@ -54,15 +54,6 @@ export function AdminPanel() {
     setSelected(null);
   };
 
-  const statusBadge = (s: string) => {
-    const styles: Record<string, string> = {
-      Pendente: 'bg-yellow-100 text-yellow-800',
-      Habilitada: 'bg-green-100 text-green-800',
-      Eliminada: 'bg-red-100 text-red-800',
-    };
-    return <span className={`px-2 py-1 rounded-full text-xs font-bold ${styles[s] || ''}`}>{s}</span>;
-  };
-
   const convocar = async (id: string) => {
     if (!dadosConvocacao.data || !dadosConvocacao.local) {
       alert('Preencha data e local.');
@@ -75,6 +66,16 @@ export function AdminPanel() {
     setModalConvocar(false);
     carregar();
     setSelected(null);
+  };
+
+  const statusBadge = (s: string) => {
+    const styles: Record<string, string> = {
+      Pendente: 'bg-yellow-100 text-yellow-800',
+      Habilitada: 'bg-green-100 text-green-800',
+      Eliminada: 'bg-red-100 text-red-800',
+      ConvocadoSegundaFase: 'bg-orange-100 text-orange-800',
+    };
+    return <span className={`px-2 py-1 rounded-full text-xs font-bold ${styles[s] || ''}`}>{s}</span>;
   };
 
   return (
@@ -101,11 +102,11 @@ export function AdminPanel() {
         {tab === 'inscricoes' && (
           <>
             <div className="flex gap-3 mb-4">
-              {['', 'Pendente', 'Habilitada', 'Eliminada'].map(s => (
+              {['', 'Pendente', 'Habilitada', 'Eliminada', 'ConvocadoSegundaFase'].map(s => (
                 <button key={s} onClick={() => setFiltroStatus(s)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition
                     ${filtroStatus === s ? 'bg-blue-900 text-white' : 'bg-white border hover:bg-gray-50'}`}>
-                  {s || 'Todas'} ({inscricoes.filter(i => !s || i.status === s).length})
+                  {s === '' ? 'Todas' : s === 'ConvocadoSegundaFase' ? '2ª Fase' : s} ({inscricoes.filter(i => !s || i.status === s).length})
                 </button>
               ))}
             </div>
@@ -171,6 +172,7 @@ export function AdminPanel() {
         )}
       </div>
 
+      {/* Modal Detalhes */}
       {selected && (
         <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50" onClick={() => setSelected(null)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
@@ -240,8 +242,8 @@ export function AdminPanel() {
               )}
 
               {selected.status === 'Habilitada' && (
-                <div className="border-t pt-4">
-                  <h3 className="font-bold text-gray-700 mb-3">Lançar Notas (0–50 por critério)</h3>
+                <div className="border-t pt-4 space-y-4">
+                  <h3 className="font-bold text-gray-700">Lançar Notas (0–50 por critério)</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { key: 'viabilidade', label: 'Viabilidade' },
@@ -258,13 +260,30 @@ export function AdminPanel() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 text-right text-sm font-bold text-orange-600">
+                  <div className="text-right text-sm font-bold text-orange-600">
                     Total: {Object.values(notas).reduce((a, b) => a + b, 0)} pontos
                   </div>
                   <button onClick={() => lancarNotas(selected.id)}
-                    className="mt-3 w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900">
+                    className="w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900">
                     💾 Salvar Notas
                   </button>
+
+                  {/* Botão Convocar para 2ª Fase */}
+                  <div className="border-t pt-4 space-y-3">
+                    <h3 className="font-bold text-gray-700">🏆 Convocar para 2ª Fase</h3>
+                    <input type="datetime-local"
+                      value={dadosConvocacao.data}
+                      onChange={e => setDadosConvocacao(d => ({ ...d, data: e.target.value }))}
+                      className="w-full border rounded-lg p-2 text-sm" />
+                    <input type="text" placeholder="Local da etapa presencial..."
+                      value={dadosConvocacao.local}
+                      onChange={e => setDadosConvocacao(d => ({ ...d, local: e.target.value }))}
+                      className="w-full border rounded-lg p-2 text-sm" />
+                    <button onClick={() => convocar(selected.id)}
+                      className="w-full py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">
+                      🏆 Convocar Candidato
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
