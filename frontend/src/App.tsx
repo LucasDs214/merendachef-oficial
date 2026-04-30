@@ -4,6 +4,7 @@ import { useAuthStore } from './hooks/useAuth';
 import { authApi, inscricaoApi } from './utils/api';
 import { InscricaoWizard } from './components/wizard/InscricaoWizard';
 import { AdminPanel } from './components/admin/AdminPanel';
+import { MinhaInscricaoPage } from './pages/MinhaInscricaoPage';
 import type { Ingrediente } from './types';
 
 // ── Auth Guard ─────────────────────────────────────────────────
@@ -32,7 +33,17 @@ function LoginPage() {
     try {
       const res = await authApi.login({ cpf, senha });
       setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
-      navigate(res.data.primeiroAcesso ? '/trocar-senha' : '/inscricao');
+      if (res.data.primeiroAcesso) {
+        navigate('/trocar-senha');
+      } else {
+        // Verifica se já tem inscrição para redirecionar corretamente
+        try {
+          await inscricaoApi.minha();
+          navigate('/minha-inscricao');
+        } catch {
+          navigate('/inscricao');
+        }
+      }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setError(err.response?.data?.error || 'Erro ao fazer login.');
@@ -55,13 +66,12 @@ function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-500 rounded-3xl shadow-lg mb-4 text-4xl">
             🍳
           </div>
           <h1 className="text-3xl font-black text-gray-900">MerendaChef</h1>
-          <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2025</p>
+          <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2026</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-orange-100">
@@ -128,7 +138,7 @@ function LoginPage() {
 
 // ── Trocar Senha Page ──────────────────────────────────────────
 function TrocarSenhaPage() {
-  const { setAuth, nome } = useAuthStore();
+  const { nome } = useAuthStore();
   const navigate = useNavigate();
   const [form, setForm] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
   const [loading, setLoading] = useState(false);
@@ -202,7 +212,7 @@ function InscricaoPage() {
       </header>
       <div className="py-4">
         <h1 className="text-center text-2xl font-black text-gray-800 mb-1">Minha Inscrição</h1>
-        <p className="text-center text-gray-500 text-sm mb-4">Concurso Culinário FAETEC 2025</p>
+        <p className="text-center text-gray-500 text-sm mb-4">Concurso Culinário FAETEC 2026</p>
         <InscricaoWizard ingredientes={ingredientes} />
       </div>
     </div>
@@ -265,6 +275,7 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/trocar-senha" element={<PrivateRoute role="candidato"><TrocarSenhaPage /></PrivateRoute>} />
         <Route path="/inscricao" element={<PrivateRoute role="candidato"><InscricaoPage /></PrivateRoute>} />
+        <Route path="/minha-inscricao" element={<PrivateRoute role="candidato"><MinhaInscricaoPage /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute role="admin"><AdminPanel /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
