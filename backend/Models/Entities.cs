@@ -59,7 +59,7 @@ public enum StatusInscricao
 {
     Pendente,
     Habilitada,
-    Eliminada
+    Eliminada,
     ConvocadoSegundaFase
 }
 
