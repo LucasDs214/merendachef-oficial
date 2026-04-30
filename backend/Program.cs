@@ -88,6 +88,6 @@ app.MapControllers();
 app.MapGet("/uploads/{userId}/{fileName}", (string userId, string fileName, IWebHostEnvironment env) => {
     var path = Path.Combine(env.ContentRootPath, "uploads", userId, fileName);
     return File.Exists(path) ? Results.File(path) : Results.NotFound();
-}).RequireAuthorization();
+});
 
 app.Run();
