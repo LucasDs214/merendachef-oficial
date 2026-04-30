@@ -9,7 +9,7 @@ interface AuthState {
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>()((set) => ({
   token: localStorage.getItem('mc_token'),
   nome: localStorage.getItem('mc_nome'),
   role: localStorage.getItem('mc_role') as 'candidato' | 'admin' | null,
