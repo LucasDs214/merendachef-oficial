@@ -187,12 +187,42 @@ public class AdminController : ControllerBase
         return Ok(new { message = "Candidato convocado com sucesso!" });
     }
 
+    // POST /api/admin/admins
+    [HttpPost("admins")]
+    public async Task<IActionResult> CriarAdmin([FromBody] CriarAdminDto dto)
+    {
+        if (await _db.Admins.AnyAsync(a => a.Email == dto.Email))
+            return Conflict(new { error = "E-mail já cadastrado." });
+    
+        var admin = new Admin
+        {
+            Nome = dto.Nome,
+            Email = dto.Email,
+            SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha)
+        };
+        _db.Admins.Add(admin);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Admin criado com sucesso!", id = admin.Id });
+    }
+    
+    // GET /api/admin/admins
+    [HttpGet("admins")]
+    public async Task<IActionResult> ListarAdmins()
+    {
+        var admins = await _db.Admins
+            .Select(a => new { a.Id, a.Nome, a.Email, a.CriadoEm })
+            .ToListAsync();
+        return Ok(admins);
+    }
+    
+
     private static bool ValidarNota(decimal nota) => nota >= 0 && nota <= 50;
 
     private static string MaskCpf(string cpf) =>
         cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
 }
 
+public record CriarAdminDto(string Nome, string Email, string Senha);
 public record ConvocarDto(DateTime DataSegundaFase, string LocalSegundaFase);
 public record EliminarDto(string Motivo);
 public record NotasDto(decimal Viabilidade, decimal Criatividade, decimal CulturaRegional, decimal AlimentosInNatura);
