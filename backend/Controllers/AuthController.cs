@@ -100,6 +100,24 @@ public class AuthController : ControllerBase
         return Ok(new { token, nome = admin.Nome });
     }
 
+    [HttpPost("reset-senha")]
+    public async Task<IActionResult> ResetSenha([FromBody] ResetSenhaDto dto)
+    {
+        var cpf = dto.Cpf.Replace(".", "").Replace("-", "");
+        var candidato = await _db.Candidatos.FirstOrDefaultAsync(c => c.Cpf == cpf);
+        if (candidato == null)
+            return NotFound(new { error = "CPF não encontrado." });
+    
+        var novaSenha = GerarSenhaTemporaria();
+        candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(novaSenha);
+        candidato.PrimeiroAcesso = true;
+        await _db.SaveChangesAsync();
+    
+        await _email.EnviarSenhaTemporariaAsync(candidato.Email, candidato.Nome, novaSenha);
+    
+        return Ok(new { message = "Senha resetada! Verifique seu e-mail." });
+    }
+
     private string GerarToken(string id, string email, string role)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Secret"]!));
@@ -141,6 +159,7 @@ public class AuthController : ControllerBase
     }
 }
 
+public record ResetSenhaDto(string Cpf);
 public record RegistroDto(string Nome, string Cpf, string Email);
 public record LoginDto(string Cpf, string Senha);
 public record TrocarSenhaDto(string SenhaAtual, string NovaSenha);
