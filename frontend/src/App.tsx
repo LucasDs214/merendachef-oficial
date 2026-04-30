@@ -5,7 +5,50 @@ import { authApi, inscricaoApi } from './utils/api';
 import { InscricaoWizard } from './components/wizard/InscricaoWizard';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { MinhaInscricaoPage } from './pages/MinhaInscricaoPage';
+import { maskCpf } from './utils/masks';
 import type { Ingrediente } from './types';
+
+// ── Eye Icon ───────────────────────────────────────────────────
+function EyeIcon({ show, toggle }: { show: boolean; toggle: () => void }) {
+  return (
+    <button type="button" onClick={toggle}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+      {show ? (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ── Password Input ─────────────────────────────────────────────
+function PasswordInput({ value, onChange, placeholder, className }: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={className}
+        required
+      />
+      <EyeIcon show={show} toggle={() => setShow(s => !s)} />
+    </div>
+  );
+}
 
 // ── Auth Guard ─────────────────────────────────────────────────
 function PrivateRoute({ children, role }: { children: React.ReactNode; role?: string }) {
@@ -23,20 +66,20 @@ function LoginPage() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'registro'>('login');
-  const [regData, setRegData] = useState({ nome: '', cpf: '', email: '' });
   const [sucesso, setSucesso] = useState('');
+  const [mode, setMode] = useState<'login' | 'registro' | 'reset'>('login');
+  const [regData, setRegData] = useState({ nome: '', cpf: '', email: '' });
+  const [resetCpf, setResetCpf] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const res = await authApi.login({ cpf, senha });
+      const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
       setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
       if (res.data.primeiroAcesso) {
         navigate('/trocar-senha');
       } else {
-        // Verifica se já tem inscrição para redirecionar corretamente
         try {
           await inscricaoApi.minha();
           navigate('/minha-inscricao');
@@ -54,12 +97,25 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      await authApi.registrar(regData);
+      await authApi.registrar({ ...regData, cpf: regData.cpf.replace(/\D/g, '') });
       setSucesso('Cadastro realizado! Verifique seu e-mail para a senha temporária.');
       setMode('login');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setError(err.response?.data?.error || 'Erro no cadastro.');
+    } finally { setLoading(false); }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      await authApi.resetSenha(resetCpf.replace(/\D/g, ''));
+      setSucesso('Senha resetada! Verifique seu e-mail para a nova senha temporária.');
+      setMode('login');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setError(err.response?.data?.error || 'CPF não encontrado.');
     } finally { setLoading(false); }
   };
 
@@ -75,54 +131,100 @@ function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-orange-100">
-          <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
-            {(['login', 'registro'] as const).map(m => (
-              <button key={m} onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
-                  ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                {m === 'login' ? 'Entrar' : 'Cadastrar'}
-              </button>
-            ))}
-          </div>
+          {mode !== 'reset' && (
+            <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+              {(['login', 'registro'] as const).map(m => (
+                <button key={m} onClick={() => { setMode(m); setError(''); setSucesso(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
+                    ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {m === 'login' ? 'Entrar' : 'Cadastrar'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {sucesso && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">✅ {sucesso}</div>}
           {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">⚠️ {error}</div>}
 
-          {mode === 'login' ? (
+          {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
-                <input type="text" placeholder="000.000.000-00" value={cpf} onChange={e => setCpf(e.target.value)}
+                <input type="text" placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={e => setCpf(maskCpf(e.target.value))}
+                  maxLength={14}
                   className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Senha</label>
-                <input type="password" value={senha} onChange={e => setSenha(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+                <PasswordInput value={senha} onChange={e => setSenha(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10" />
               </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
                 {loading ? 'Entrando...' : 'Entrar →'}
               </button>
+              <button type="button" onClick={() => { setMode('reset'); setError(''); setSucesso(''); }}
+                className="w-full text-sm text-orange-500 hover:text-orange-700 text-center mt-1">
+                Esqueci minha senha
+              </button>
             </form>
-          ) : (
+          )}
+
+          {mode === 'registro' && (
             <form onSubmit={handleRegistro} className="space-y-4">
-              {[
-                { key: 'nome', label: 'Nome Completo', type: 'text', placeholder: 'Seu nome completo' },
-                { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
-                { key: 'email', label: 'E-mail', type: 'email', placeholder: 'seu@email.com' },
-              ].map(({ key, label, type, placeholder }) => (
-                <div key={key}>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-                  <input type={type} placeholder={placeholder}
-                    value={regData[key as keyof typeof regData]}
-                    onChange={e => setRegData(d => ({ ...d, [key]: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
-                </div>
-              ))}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
+                <input type="text" placeholder="Seu nome completo"
+                  value={regData.nome}
+                  onChange={e => setRegData(d => ({ ...d, nome: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
+                <input type="text" placeholder="000.000.000-00"
+                  value={regData.cpf}
+                  onChange={e => setRegData(d => ({ ...d, cpf: maskCpf(e.target.value) }))}
+                  maxLength={14}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail</label>
+                <input type="email" placeholder="seu@email.com"
+                  value={regData.email}
+                  onChange={e => setRegData(d => ({ ...d, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+              </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
                 {loading ? 'Cadastrando...' : 'Criar Conta'}
+              </button>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form onSubmit={handleReset} className="space-y-4">
+              <div className="text-center mb-2">
+                <div className="text-3xl mb-2">🔑</div>
+                <h3 className="font-bold text-gray-800">Resetar Senha</h3>
+                <p className="text-sm text-gray-500">Digite seu CPF e enviaremos uma nova senha para seu e-mail.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
+                <input type="text" placeholder="000.000.000-00"
+                  value={resetCpf}
+                  onChange={e => setResetCpf(maskCpf(e.target.value))}
+                  maxLength={14}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+              </div>
+              <button type="submit" disabled={loading}
+                className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
+                {loading ? 'Enviando...' : 'Enviar Nova Senha'}
+              </button>
+              <button type="button" onClick={() => { setMode('login'); setError(''); }}
+                className="w-full text-sm text-gray-500 hover:text-gray-700 text-center">
+                ← Voltar ao login
               </button>
             </form>
           )}
@@ -172,9 +274,11 @@ function TrocarSenhaPage() {
           ].map(({ key, label }) => (
             <div key={key}>
               <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-              <input type="password" value={form[key as keyof typeof form]}
+              <PasswordInput
+                value={form[key as keyof typeof form]}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
+                className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10"
+              />
             </div>
           ))}
           <button type="submit" disabled={loading}
@@ -251,8 +355,9 @@ function AdminLoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
             className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none" required />
-          <input type="password" placeholder="Senha" value={senha} onChange={e => setSenha(e.target.value)}
-            className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none" required />
+          <PasswordInput value={senha} onChange={e => setSenha(e.target.value)}
+            placeholder="Senha"
+            className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none pr-10" />
           <button type="submit" disabled={loading}
             className="w-full py-3 bg-blue-900 text-white rounded-xl font-bold hover:bg-blue-800 transition disabled:opacity-50">
             {loading ? 'Entrando...' : 'Entrar'}
