@@ -47,10 +47,14 @@ export const inscricaoApi = {
 export const adminApi = {
   listar: (status?: string) =>
     api.get('/api/admin/inscricoes', { params: status ? { status } : {} }),
-  habilitar: (id: string) => api.patch(`/api/admin/inscricoes/${id}/habilitar`),
+  habilitar: (id: string) =>
+    api.patch(`/api/admin/inscricoes/${id}/habilitar`),
   eliminar: (id: string, motivo: string) =>
     api.patch(`/api/admin/inscricoes/${id}/eliminar`, { motivo }),
   lancarNotas: (id: string, notas: object) =>
     api.patch(`/api/admin/inscricoes/${id}/notas`, notas),
-  ranking: () => api.get('/api/admin/ranking'),
+  ranking: () =>
+    api.get('/api/admin/ranking'),
+  convocar: (id: string, dados: object) =>
+    api.patch(`/api/admin/inscricoes/${id}/convocar`, dados),
 };
