@@ -79,8 +79,26 @@ public class InscricoesController : ControllerBase
         var inscricao = await _db.Inscricoes
             .Include(i => i.Ingredientes).ThenInclude(ii => ii.Ingrediente)
             .FirstOrDefaultAsync(i => i.CandidatoId == userId);
-        if (inscricao == null) return NotFound();
-        return Ok(MapToDto(inscricao));
+    
+        if (inscricao == null) return NotFound(new { error = "Nenhuma inscrição encontrada." });
+    
+        return Ok(new {
+            id = inscricao.Id,
+            nomeReceita = inscricao.NomeReceita,
+            descricao = inscricao.Descricao,
+            fotoReceita = inscricao.FotoReceita,
+            status = inscricao.Status.ToString(),
+            motivoEliminacao = inscricao.MotivoEliminacao,
+            dataSegundaFase = inscricao.DataSegundaFase,
+            localSegundaFase = inscricao.LocalSegundaFase,
+            convocadoEm = inscricao.ConvocadoEm,
+            ingredientes = inscricao.Ingredientes.Select(ii => new {
+                ii.Ingrediente.Id,
+                ii.Ingrediente.Nome,
+                ii.Ingrediente.IsInNatura
+            }),
+            criadaEm = inscricao.CriadaEm
+        });
     }
 
     // Fase classificatória - anônimo
