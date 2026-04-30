@@ -3,6 +3,8 @@ import { adminApi } from '../../utils/api';
 import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const [modalConvocar, setModalConvocar] = useState(false);
+const [dadosConvocacao, setDadosConvocacao] = useState({ data: '', local: '' });
 
 type Tab = 'inscricoes' | 'ranking';
 
@@ -59,6 +61,20 @@ export function AdminPanel() {
       Eliminada: 'bg-red-100 text-red-800',
     };
     return <span className={`px-2 py-1 rounded-full text-xs font-bold ${styles[s] || ''}`}>{s}</span>;
+  };
+
+  const convocar = async (id: string) => {
+    if (!dadosConvocacao.data || !dadosConvocacao.local) {
+      alert('Preencha data e local.');
+      return;
+    }
+    await adminApi.convocar(id, {
+      dataSegundaFase: dadosConvocacao.data,
+      localSegundaFase: dadosConvocacao.local
+    });
+    setModalConvocar(false);
+    carregar();
+    setSelected(null);
   };
 
   return (
