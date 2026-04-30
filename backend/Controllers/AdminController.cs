@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MerendaChef.Api.Data;
 using MerendaChef.Api.Models;
+using MerendaChef.Api.Services;
 
 namespace MerendaChef.Api.Controllers;
 
@@ -12,10 +13,14 @@ namespace MerendaChef.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IEmailService _email;
 
-    public AdminController(AppDbContext db) => _db = db;
+    public AdminController(AppDbContext db, IEmailService email)
+    {
+        _db = db;
+        _email = email;
+    }
 
-    // GET /api/admin/inscricoes
     [HttpGet("inscricoes")]
     public async Task<IActionResult> ListarInscricoes([FromQuery] StatusInscricao? status)
     {
@@ -70,7 +75,6 @@ public class AdminController : ControllerBase
         }));
     }
 
-    // PATCH /api/admin/inscricoes/{id}/habilitar
     [HttpPatch("inscricoes/{id:guid}/habilitar")]
     public async Task<IActionResult> Habilitar(Guid id)
     {
@@ -83,7 +87,6 @@ public class AdminController : ControllerBase
         return Ok(new { message = "Inscrição habilitada." });
     }
 
-    // PATCH /api/admin/inscricoes/{id}/eliminar
     [HttpPatch("inscricoes/{id:guid}/eliminar")]
     public async Task<IActionResult> Eliminar(Guid id, [FromBody] EliminarDto dto)
     {
@@ -96,7 +99,6 @@ public class AdminController : ControllerBase
         return Ok(new { message = "Inscrição eliminada." });
     }
 
-    // PATCH /api/admin/inscricoes/{id}/notas
     [HttpPatch("inscricoes/{id:guid}/notas")]
     public async Task<IActionResult> LancarNotas(Guid id, [FromBody] NotasDto dto)
     {
@@ -105,7 +107,6 @@ public class AdminController : ControllerBase
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser pontuadas." });
 
-        // Validação range 0-50
         if (!ValidarNota(dto.Viabilidade) || !ValidarNota(dto.Criatividade) ||
             !ValidarNota(dto.CulturaRegional) || !ValidarNota(dto.AlimentosInNatura))
             return BadRequest(new { error = "Notas devem estar entre 0 e 50." });
@@ -121,8 +122,6 @@ public class AdminController : ControllerBase
         return Ok(new { notaTotal = inscricao.NotaTotal });
     }
 
-    // GET /api/admin/ranking
-    // Algoritmo: Total DESC, depois desempate: InNatura > Viabilidade > Criatividade > Regional
     [HttpGet("ranking")]
     public async Task<IActionResult> Ranking()
     {
@@ -133,10 +132,10 @@ public class AdminController : ControllerBase
 
         var rankingOrdenado = inscricoes
             .OrderByDescending(i => i.NotaTotal)
-            .ThenByDescending(i => i.NotaAlimentosInNatura)    // 1º critério de desempate
-            .ThenByDescending(i => i.NotaViabilidade)          // 2º critério de desempate
-            .ThenByDescending(i => i.NotaCriatividade)         // 3º critério de desempate
-            .ThenByDescending(i => i.NotaCulturaRegional)      // 4º critério de desempate
+            .ThenByDescending(i => i.NotaAlimentosInNatura)
+            .ThenByDescending(i => i.NotaViabilidade)
+            .ThenByDescending(i => i.NotaCriatividade)
+            .ThenByDescending(i => i.NotaCulturaRegional)
             .Select((i, idx) => new
             {
                 posicao = idx + 1,
@@ -156,26 +155,25 @@ public class AdminController : ControllerBase
         return Ok(rankingOrdenado);
     }
 
-    // PATCH /api/admin/inscricoes/{id}/convocar
     [HttpPatch("inscricoes/{id:guid}/convocar")]
     public async Task<IActionResult> Convocar(Guid id, [FromBody] ConvocarDto dto)
     {
         var inscricao = await _db.Inscricoes
             .Include(i => i.Candidato)
             .FirstOrDefaultAsync(i => i.Id == id);
-    
+
         if (inscricao == null) return NotFound();
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
-    
+
         inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
         inscricao.DataSegundaFase = dto.DataSegundaFase;
         inscricao.LocalSegundaFase = dto.LocalSegundaFase;
         inscricao.ConvocadoEm = DateTime.UtcNow;
         inscricao.AtualizadaEm = DateTime.UtcNow;
-    
+
         await _db.SaveChangesAsync();
-    
+
         await _email.EnviarConvocacaoSegundaFaseAsync(
             inscricao.Candidato.Email,
             inscricao.Candidato.Nome,
@@ -183,17 +181,16 @@ public class AdminController : ControllerBase
             dto.DataSegundaFase,
             dto.LocalSegundaFase
         );
-    
+
         return Ok(new { message = "Candidato convocado com sucesso!" });
     }
 
-    // POST /api/admin/admins
     [HttpPost("admins")]
     public async Task<IActionResult> CriarAdmin([FromBody] CriarAdminDto dto)
     {
         if (await _db.Admins.AnyAsync(a => a.Email == dto.Email))
             return Conflict(new { error = "E-mail já cadastrado." });
-    
+
         var admin = new Admin
         {
             Nome = dto.Nome,
@@ -204,8 +201,7 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { message = "Admin criado com sucesso!", id = admin.Id });
     }
-    
-    // GET /api/admin/admins
+
     [HttpGet("admins")]
     public async Task<IActionResult> ListarAdmins()
     {
@@ -214,7 +210,6 @@ public class AdminController : ControllerBase
             .ToListAsync();
         return Ok(admins);
     }
-    
 
     private static bool ValidarNota(decimal nota) => nota >= 0 && nota <= 50;
 
