@@ -48,6 +48,11 @@ public class Inscricao
     public DateTime? AtualizadaEm { get; set; }
 
     public ICollection<InscricaoIngrediente> Ingredientes { get; set; } = new List<InscricaoIngrediente>();
+
+    // Novos campos para segunda fase
+    public DateTime? DataSegundaFase { get; set; }
+    public string? LocalSegundaFase { get; set; }
+    public DateTime? ConvocadoEm { get; set; }
 }
 
 public enum StatusInscricao
@@ -55,6 +60,7 @@ public enum StatusInscricao
     Pendente,
     Habilitada,
     Eliminada
+    ConvocadoSegundaFase
 }
 
 public class Ingrediente
