@@ -7,11 +7,9 @@ using MerendaChef.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Auth JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt => {
         opt.TokenValidationParameters = new TokenValidationParameters
@@ -33,7 +31,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
-// CORS — origens via variável de ambiente (seguro para produção pública)
 var allowedOrigins = builder.Configuration
     .GetSection("AllowedOrigins")
     .Get<string[]>() ?? [];
@@ -45,14 +42,9 @@ builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
 
 var app = builder.Build();
 
-// Auto-migrate + seed
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    // Antes:
-    //db.Database.Migrate();
-    
-    // Depois:
     db.Database.EnsureCreated();
 
     if (!db.Admins.Any())
@@ -68,23 +60,14 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-//comentado por hora para testes com swagger
-/*if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}*/
-
 app.UseSwagger();
-    app.UseSwaggerUI();
-
+app.UseSwaggerUI();
 app.UseStaticFiles();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Servir uploads
 app.MapGet("/uploads/{userId}/{fileName}", (string userId, string fileName, IWebHostEnvironment env) => {
     var path = Path.Combine(env.ContentRootPath, "uploads", userId, fileName);
     return File.Exists(path) ? Results.File(path) : Results.NotFound();
