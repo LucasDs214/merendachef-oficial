@@ -39,7 +39,7 @@ services:
       Email__Password: ${SMTP_PASS:-}
       Email__From: noreply@merendachef.faetec.rj.gov.br
       ASPNETCORE_URLS: http://+:8080
-      AllowedOrigins__0: http://10.200.15.225:3000
+      AllowedOrigins__0: http://10.200.15.32:3000
       AllowedOrigins__1: http://localhost:3000
       AllowedOrigins__2: http://localhost:5173
     ports:
@@ -55,7 +55,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://10.200.15.225:8080
+        VITE_API_URL: http://10.200.15.32:8080
     container_name: merendachef_web
     restart: unless-stopped
     ports:
