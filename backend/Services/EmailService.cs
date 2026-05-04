@@ -6,68 +6,97 @@ public interface IEmailService
     Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local);
 }
 
-public class MockEmailService : IEmailService
+public class SmtpEmailService : IEmailService
 {
-    private readonly ILogger<MockEmailService> _logger;
     private readonly IConfiguration _config;
+    private readonly ILogger<SmtpEmailService> _logger;
 
-    public MockEmailService(ILogger<MockEmailService> logger, IConfiguration config)
+    public SmtpEmailService(IConfiguration config, ILogger<SmtpEmailService> logger)
     {
-        _logger = logger;
         _config = config;
+        _logger = logger;
     }
 
-    public Task EnviarSenhaTemporariaAsync(string destinatario, string nome, string senha)
+    private async Task EnviarAsync(string destinatario, string assunto, string corpoHtml)
     {
-        _logger.LogInformation(
-            "📧 [MOCK EMAIL] Para: {Email} | Assunto: Sua senha temporária MerendaChef\n" +
-            "Olá {Nome},\n" +
-            "Seu cadastro no MerendaChef foi realizado com sucesso!\n" +
-            "Senha temporária: {Senha}\n" +
-            "Acesse: http://10.200.15.225:3000/login\n" +
-            "⚠️ Você deverá alterar sua senha no primeiro acesso.",
-            destinatario, nome, senha
-        );
-        return Task.CompletedTask;
-    }
+        var host = _config["Email:SmtpHost"];
+        var port = int.Parse(_config["Email:SmtpPort"] ?? "587");
+        var user = _config["Email:User"];
+        var pass = _config["Email:Password"];
+        var from = _config["Email:From"];
 
-    public Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local)
-    {
-        _logger.LogInformation(
-            "📧 [MOCK EMAIL - CONVOCAÇÃO 2ª FASE] Para: {Email}\n" +
-            "🏆 Parabéns, {Nome}!\n" +
-            "Sua receita '{Receita}' foi selecionada entre as 12 melhores do Concurso Culinário FAETEC 2025!\n\n" +
-            "📅 Data e Horário: {Data}\n" +
-            "📍 Local: {Local}\n\n" +
-            "Compareça com documento de identidade e com antecedência.\n" +
-            "Acesse sua inscrição em: http://10.200.15.225:3000/minha-inscricao",
-            destinatario, nome, nomeReceita,
-            data.ToString("dd/MM/yyyy 'às' HH:mm"), local
-        );
+        using var client = new MailKit.Net.Smtp.SmtpClient();
+        await client.ConnectAsync(host, port, false);
+        await client.AuthenticateAsync(user, pass);
 
-        // Para produção com MailKit, descomente e configure:
-        /*
-        var message = new MimeMessage();
-        message.From.Add(MailboxAddress.Parse(_config["Email:From"]));
-        message.To.Add(MailboxAddress.Parse(destinatario));
-        message.Subject = "🏆 MerendaChef — Você foi convocado para a 2ª Fase!";
-        message.Body = new TextPart("html")
-        {
-            Text = $@"
-            <h2>Parabéns, {nome}!</h2>
-            <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores!</p>
-            <p><strong>Data:</strong> {data:dd/MM/yyyy 'às' HH:mm}</p>
-            <p><strong>Local:</strong> {local}</p>
-            <p>Compareça com documento de identidade.</p>
-            <a href='http://10.200.15.225:3000/minha-inscricao'>Ver minha inscrição</a>"
-        };
-        using var client = new SmtpClient();
-        await client.ConnectAsync(_config["Email:SmtpHost"], int.Parse(_config["Email:SmtpPort"]!), false);
-        await client.AuthenticateAsync(_config["Email:User"], _config["Email:Password"]);
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(MimeKit.MailboxAddress.Parse(from));
+        message.To.Add(MimeKit.MailboxAddress.Parse(destinatario));
+        message.Subject = assunto;
+        message.Body = new MimeKit.TextPart("html") { Text = corpoHtml };
+
         await client.SendAsync(message);
         await client.DisconnectAsync(true);
-        */
 
-        return Task.CompletedTask;
+        _logger.LogInformation("✅ E-mail enviado para {Email}: {Assunto}", destinatario, assunto);
+    }
+
+    public async Task EnviarSenhaTemporariaAsync(string destinatario, string nome, string senha)
+    {
+        var html = $@"
+        <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
+            <div style='background:#e85d24;padding:20px;text-align:center'>
+                <h1 style='color:white;margin:0'>🍳 MerendaChef</h1>
+                <p style='color:white;margin:5px 0'>Concurso Culinário FAETEC 2026</p>
+            </div>
+            <div style='padding:30px;background:#fff'>
+                <h2>Olá, {nome}!</h2>
+                <p>Seu cadastro foi realizado com sucesso.</p>
+                <p>Sua senha temporária é:</p>
+                <div style='background:#f5f5f5;padding:15px;text-align:center;font-size:24px;font-weight:bold;letter-spacing:3px;border-radius:8px'>
+                    {senha}
+                </div>
+                <p style='margin-top:20px'>Acesse o sistema e troque sua senha no primeiro login.</p>
+                <a href='http://10.200.15.32:3000/login' 
+                   style='display:inline-block;background:#e85d24;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:10px'>
+                    Acessar MerendaChef
+                </a>
+            </div>
+            <div style='padding:15px;background:#f5f5f5;text-align:center;font-size:12px;color:#666'>
+                FAETEC — Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro
+            </div>
+        </div>";
+
+        await EnviarAsync(destinatario, "MerendaChef — Sua senha temporária", html);
+    }
+
+    public async Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local)
+    {
+        var html = $@"
+        <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
+            <div style='background:#e85d24;padding:20px;text-align:center'>
+                <h1 style='color:white;margin:0'>🍳 MerendaChef</h1>
+                <p style='color:white;margin:5px 0'>Concurso Culinário FAETEC 2026</p>
+            </div>
+            <div style='padding:30px;background:#fff'>
+                <h2>🏆 Parabéns, {nome}!</h2>
+                <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores do concurso!</p>
+                <p>Você está convocado para a <strong>etapa presencial</strong>:</p>
+                <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
+                    <p style='margin:5px 0'><strong>📅 Data:</strong> {data:dd/MM/yyyy 'às' HH:mm}</p>
+                    <p style='margin:5px 0'><strong>📍 Local:</strong> {local}</p>
+                </div>
+                <p style='color:#e85d24;font-weight:bold'>⚠️ Compareça com documento de identidade e com antecedência.</p>
+                <a href='http://10.200.15.32:3000/minha-inscricao'
+                   style='display:inline-block;background:#e85d24;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:10px'>
+                    Ver minha inscrição
+                </a>
+            </div>
+            <div style='padding:15px;background:#f5f5f5;text-align:center;font-size:12px;color:#666'>
+                FAETEC — Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro
+            </div>
+        </div>";
+
+        await EnviarAsync(destinatario, "🏆 MerendaChef — Você foi convocado para a 2ª Fase!", html);
     }
 }
