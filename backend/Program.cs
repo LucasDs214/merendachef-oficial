@@ -31,7 +31,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<IEmailService, MockEmailService>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
 // CORS — origens via variável de ambiente (seguro para produção pública)
 var allowedOrigins = builder.Configuration
