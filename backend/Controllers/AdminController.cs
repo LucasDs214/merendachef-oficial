@@ -168,7 +168,7 @@ public class AdminController : ControllerBase
 
         inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
         inscricao.DataSegundaFase = dto.DataSegundaFase;
-        inscricao.LocalSegundaFase = dto.LocalSegundaFase;
+        inscricao.DataSegundaFase = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Utc);
         inscricao.ConvocadoEm = DateTime.UtcNow;
         inscricao.AtualizadaEm = DateTime.UtcNow;
 
