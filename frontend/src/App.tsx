@@ -8,6 +8,23 @@ import { MinhaInscricaoPage } from './pages/MinhaInscricaoPage';
 import { maskCpf } from './utils/masks';
 import type { Ingrediente } from './types';
 
+// ── Toast ──────────────────────────────────────────────────────
+function Toast({ message, type, onClose }: { message: string; type: 'error' | 'success'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium transition-all
+      ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+      <span>{type === 'error' ? '⚠️' : '✅'}</span>
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-2 text-white/70 hover:text-white">✕</button>
+    </div>
+  );
+}
+
 // ── Eye Icon ───────────────────────────────────────────────────
 function EyeIcon({ show, toggle }: { show: boolean; toggle: () => void }) {
   return (
