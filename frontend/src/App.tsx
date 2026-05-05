@@ -16,7 +16,7 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
   }, [onClose]);
 
   return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium transition-all
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium
       ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
       <span>{type === 'error' ? '⚠️' : '✅'}</span>
       <span>{message}</span>
@@ -82,15 +82,14 @@ function LoginPage() {
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [sucesso, setSucesso] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const [mode, setMode] = useState<'login' | 'registro' | 'reset'>('login');
   const [regData, setRegData] = useState({ nome: '', cpf: '', email: '' });
   const [resetCpf, setResetCpf] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    setLoading(true);
     try {
       const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
       setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
@@ -106,42 +105,43 @@ function LoginPage() {
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'Erro ao fazer login.');
+      setToast({ message: err.response?.data?.error || 'CPF ou senha inválidos.', type: 'error' });
     } finally { setLoading(false); }
   };
 
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    setLoading(true);
     try {
       await authApi.registrar({ ...regData, cpf: regData.cpf.replace(/\D/g, '') });
-      setSucesso('Cadastro realizado! Verifique seu e-mail para a senha temporária.');
+      setToast({ message: 'Cadastro realizado! Verifique seu e-mail para a senha temporária.', type: 'success' });
       setMode('login');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'Erro no cadastro.');
+      setToast({ message: err.response?.data?.error || 'Erro no cadastro.', type: 'error' });
     } finally { setLoading(false); }
   };
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    setLoading(true);
     try {
       await authApi.resetSenha(resetCpf.replace(/\D/g, ''));
-      setSucesso('Senha resetada! Verifique seu e-mail para a nova senha temporária.');
+      setToast({ message: 'Senha resetada! Verifique seu e-mail para a nova senha temporária.', type: 'success' });
       setMode('login');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'CPF não encontrado.');
+      setToast({ message: err.response?.data?.error || 'CPF não encontrado.', type: 'error' });
     } finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center p-4">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-500 rounded-3xl shadow-lg mb-4 text-4xl">
-            🍳
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl shadow-lg mb-4">
+            <img src="/favicon.png" alt="MerendaChef" className="w-20 h-20 rounded-3xl" />
           </div>
           <h1 className="text-3xl font-black text-gray-900">MerendaChef</h1>
           <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2026</p>
@@ -151,7 +151,7 @@ function LoginPage() {
           {mode !== 'reset' && (
             <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
               {(['login', 'registro'] as const).map(m => (
-                <button key={m} onClick={() => { setMode(m); setError(''); setSucesso(''); }}
+                <button key={m} onClick={() => { setMode(m); setToast(null); }}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
                     ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
                   {m === 'login' ? 'Entrar' : 'Cadastrar'}
@@ -159,9 +159,6 @@ function LoginPage() {
               ))}
             </div>
           )}
-
-          {sucesso && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">✅ {sucesso}</div>}
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">⚠️ {error}</div>}
 
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
@@ -182,7 +179,7 @@ function LoginPage() {
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
                 {loading ? 'Entrando...' : 'Entrar →'}
               </button>
-              <button type="button" onClick={() => { setMode('reset'); setError(''); setSucesso(''); }}
+              <button type="button" onClick={() => { setMode('reset'); setToast(null); }}
                 className="w-full text-sm text-orange-500 hover:text-orange-700 text-center mt-1">
                 Esqueci minha senha
               </button>
@@ -239,7 +236,7 @@ function LoginPage() {
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
                 {loading ? 'Enviando...' : 'Enviar Nova Senha'}
               </button>
-              <button type="button" onClick={() => { setMode('login'); setError(''); }}
+              <button type="button" onClick={() => { setMode('login'); setToast(null); }}
                 className="w-full text-sm text-gray-500 hover:text-gray-700 text-center">
                 ← Voltar ao login
               </button>
@@ -261,28 +258,28 @@ function TrocarSenhaPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.novaSenha !== form.confirmar) { setError('As senhas não coincidem.'); return; }
-    if (form.novaSenha.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return; }
+    if (form.novaSenha !== form.confirmar) { setToast({ message: 'As senhas não coincidem.', type: 'error' }); return; }
+    if (form.novaSenha.length < 8) { setToast({ message: 'A nova senha deve ter no mínimo 8 caracteres.', type: 'error' }); return; }
     setLoading(true);
     try {
       await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
       navigate('/inscricao');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'Erro ao trocar senha.');
+      setToast({ message: err.response?.data?.error || 'Erro ao trocar senha.', type: 'error' });
     } finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border border-orange-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">🔐 Trocar Senha</h2>
         <p className="text-gray-500 text-sm mb-6">Olá, {nome}! Por segurança, crie uma senha pessoal.</p>
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">⚠️ {error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           {[
             { key: 'senhaAtual', label: 'Senha Temporária' },
@@ -322,7 +319,7 @@ function InscricaoPage() {
     <div className="min-h-screen bg-orange-50">
       <header className="bg-white border-b border-orange-100 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🍳</span>
+          <img src="/favicon.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
           <span className="font-bold text-orange-700">MerendaChef</span>
         </div>
         <div className="flex items-center gap-3">
@@ -347,7 +344,7 @@ function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,19 +353,20 @@ function AdminLoginPage() {
       const res = await authApi.adminLogin({ email, senha });
       setAuth(res.data.token, res.data.nome, 'admin');
       navigate('/admin');
-    } catch { setError('Credenciais inválidas.'); }
-    finally { setLoading(false); }
+    } catch {
+      setToast({ message: 'Credenciais inválidas.', type: 'error' });
+    } finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen bg-blue-950 flex items-center justify-center p-4">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
         <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🛡️</div>
+          <img src="/favicon.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
           <h2 className="text-xl font-bold">Acesso Administrativo</h2>
           <p className="text-gray-500 text-sm">MerendaChef — FAETEC</p>
         </div>
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">⚠️ {error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
             className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none" required />
