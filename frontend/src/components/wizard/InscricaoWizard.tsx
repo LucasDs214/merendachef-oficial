@@ -13,16 +13,19 @@ const STEPS = [
 ];
 
 const UNIDADES_FAETEC = [
-  'FAETEC - Sede Central',
-  'ETEc Ferreira Viana',
-  'ETEc Oscar Tenório',
-  'ETEc República',
-  'ETEc João Barcelos Martins',
-  'ETEc Henrique Lage',
-  'ETEc Nilo Peçanha',
-  'ETEc Orsina da Fonseca',
-  'ETEc Adolpho Bloch',
-  'Outro',
+  'Ete João Luiz do Nascimento',
+  'Ete Juscelino Kubistschek',
+  'Creche Casa da Criança',
+  'Ete República',
+  'Escola Especial Favo de Mel',
+  'Iserj',
+  'Ete Ferreira Viana',
+  'Ete Imbariê',
+  'Marechal Hermes Cozinha Central',
+  'Ete Santa Cruz',
+  'Fundamental República',
+  'Henrique Lage - Barreto',
+  'Ete Adolpho Bloch',
 ];
 
 interface Props {
