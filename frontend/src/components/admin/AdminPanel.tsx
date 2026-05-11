@@ -4,12 +4,20 @@ import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-type Tab = 'inscricoes' | 'ranking';
+type Tab = 'inscricoes' | 'ranking' | 'admins';
+
+interface AdminItem {
+  id: string;
+  nome: string;
+  email: string;
+  criadoEm: string;
+}
 
 export function AdminPanel() {
   const [tab, setTab] = useState<Tab>('inscricoes');
   const [inscricoes, setInscricoes] = useState<InscricaoAdmin[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
+  const [admins, setAdmins] = useState<AdminItem[]>([]);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<InscricaoAdmin | null>(null);
@@ -17,6 +25,9 @@ export function AdminPanel() {
   const [notas, setNotas] = useState({ viabilidade: 0, criatividade: 0, culturaRegional: 0, alimentosInNatura: 0 });
   const [modalConvocar, setModalConvocar] = useState(false);
   const [dadosConvocacao, setDadosConvocacao] = useState({ data: '', local: '' });
+  const [novoAdmin, setNovoAdmin] = useState({ nome: '', email: '', senha: '' });
+  const [adminMsg, setAdminMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
+  const [loadingAdmin, setLoadingAdmin] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
@@ -31,8 +42,14 @@ export function AdminPanel() {
     setRanking(res.data);
   };
 
+  const carregarAdmins = async () => {
+    const res = await adminApi.listarAdmins();
+    setAdmins(res.data);
+  };
+
   useEffect(() => { carregar(); }, [filtroStatus]);
   useEffect(() => { if (tab === 'ranking') carregarRanking(); }, [tab]);
+  useEffect(() => { if (tab === 'admins') carregarAdmins(); }, [tab]);
 
   const habilitar = async (id: string) => {
     await adminApi.habilitar(id);
@@ -68,6 +85,27 @@ export function AdminPanel() {
     setSelected(null);
   };
 
+  const criarAdmin = async () => {
+    if (!novoAdmin.nome || !novoAdmin.email || !novoAdmin.senha) {
+      setAdminMsg({ texto: 'Preencha todos os campos.', tipo: 'erro' });
+      return;
+    }
+    if (novoAdmin.senha.length < 8) {
+      setAdminMsg({ texto: 'A senha deve ter no mínimo 8 caracteres.', tipo: 'erro' });
+      return;
+    }
+    setLoadingAdmin(true);
+    try {
+      await adminApi.criarAdmin(novoAdmin);
+      setAdminMsg({ texto: 'Administrador criado com sucesso!', tipo: 'sucesso' });
+      setNovoAdmin({ nome: '', email: '', senha: '' });
+      carregarAdmins();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setAdminMsg({ texto: err.response?.data?.error || 'Erro ao criar administrador.', tipo: 'erro' });
+    } finally { setLoadingAdmin(false); }
+  };
+
   const statusBadge = (s: string) => {
     const styles: Record<string, string> = {
       Pendente: 'bg-yellow-100 text-yellow-800',
@@ -81,7 +119,9 @@ export function AdminPanel() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-blue-900 text-white px-6 py-4 flex items-center gap-4">
-        <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center text-xl">🍳</div>
+        <div className="w-10 h-10 rounded-lg overflow-hidden">
+          <img src="/favicon.png" alt="MerendaChef" className="w-full h-full object-cover" />
+        </div>
         <div>
           <h1 className="text-xl font-bold">MerendaChef — Administração</h1>
           <p className="text-blue-200 text-sm">Painel de Gestão do Concurso FAETEC</p>
@@ -90,18 +130,18 @@ export function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-2 mb-6">
-          {(['inscricoes', 'ranking'] as Tab[]).map(t => (
+          {(['inscricoes', 'ranking', 'admins'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-5 py-2.5 rounded-lg font-semibold transition
                 ${tab === t ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}>
-              {t === 'inscricoes' ? '📋 Inscrições' : '🏆 Ranking'}
+              {t === 'inscricoes' ? '📋 Inscrições' : t === 'ranking' ? '🏆 Ranking' : '👤 Admins'}
             </button>
           ))}
         </div>
 
         {tab === 'inscricoes' && (
           <>
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3 mb-4 flex-wrap">
               {['', 'Pendente', 'Habilitada', 'Eliminada', 'ConvocadoSegundaFase'].map(s => (
                 <button key={s} onClick={() => setFiltroStatus(s)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition
@@ -168,6 +208,74 @@ export function AdminPanel() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {tab === 'admins' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* Formulário de criação */}
+            <div className="bg-white rounded-xl border p-6 space-y-4">
+              <h2 className="text-lg font-bold text-gray-800">👤 Novo Administrador</h2>
+
+              {adminMsg && (
+                <div className={`p-3 rounded-lg text-sm font-medium ${adminMsg.tipo === 'sucesso' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                  {adminMsg.tipo === 'sucesso' ? '✅' : '⚠️'} {adminMsg.texto}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
+                <input type="text" placeholder="Nome do administrador"
+                  value={novoAdmin.nome}
+                  onChange={e => { setNovoAdmin(d => ({ ...d, nome: e.target.value })); setAdminMsg(null); }}
+                  className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail</label>
+                <input type="email" placeholder="email@faetec.rj.gov.br"
+                  value={novoAdmin.email}
+                  onChange={e => { setNovoAdmin(d => ({ ...d, email: e.target.value })); setAdminMsg(null); }}
+                  className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Senha (mín. 8 caracteres)</label>
+                <input type="password" placeholder="Senha de acesso"
+                  value={novoAdmin.senha}
+                  onChange={e => { setNovoAdmin(d => ({ ...d, senha: e.target.value })); setAdminMsg(null); }}
+                  className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
+              </div>
+              <button onClick={criarAdmin} disabled={loadingAdmin}
+                className="w-full py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition disabled:opacity-50">
+                {loadingAdmin ? 'Criando...' : '➕ Criar Administrador'}
+              </button>
+            </div>
+
+            {/* Lista de admins */}
+            <div className="bg-white rounded-xl border p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">👥 Administradores Cadastrados</h2>
+              {admins.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">Nenhum administrador encontrado.</p>
+              ) : (
+                <div className="space-y-3">
+                  {admins.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                      <div className="w-9 h-9 bg-blue-900 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {a.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-800 text-sm truncate">{a.nome}</p>
+                        <p className="text-xs text-gray-500 truncate">{a.email}</p>
+                      </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0">
+                        {new Date(a.criadoEm).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
       </div>
@@ -268,7 +376,6 @@ export function AdminPanel() {
                     💾 Salvar Notas
                   </button>
 
-                  {/* Botão Convocar para 2ª Fase */}
                   <div className="border-t pt-4 space-y-3">
                     <h3 className="font-bold text-gray-700">🏆 Convocar para 2ª Fase</h3>
                     <input type="datetime-local"
