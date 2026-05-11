@@ -5,8 +5,6 @@ Sistema completo para gerenciar o concurso culinário da rede FAETEC, com módul
 ---
 
 ## 🏗️ Arquitetura
-
-```
 merendachef/
 ├── backend/                  # ASP.NET Core 8 (C#)
 │   ├── Controllers/
@@ -18,7 +16,7 @@ merendachef/
 │   ├── Data/
 │   │   └── AppDbContext.cs         # EF Core + Seed Anexo I
 │   ├── Services/
-│   │   └── EmailService.cs         # Mock (prod: MailKit SMTP)
+│   │   └── EmailService.cs         # Serviço de e-mail SMTP
 │   └── Program.cs                  # DI, JWT, CORS, Migrations
 │
 ├── frontend/                 # React 18 + TypeScript + Tailwind
@@ -36,30 +34,44 @@ merendachef/
 ├── infra/
 │   └── init.sql                    # PostgreSQL init
 └── docker-compose.yml              # 3 containers orquestrados
-```
 
 ---
 
 ## 🚀 Como Rodar
 
 ### Pré-requisitos
-- Docker Desktop 24+
+- Docker Engine 24+
 - Docker Compose v2
 
-### Subir tudo com um comando
-```bash
-cd merendachef
-docker-compose up --build
+### Configurar variáveis de ambiente
+
+Antes de subir, configure as variáveis no `docker-compose.yml`:
+
+```env
+DB_PASSWORD=           # Senha do PostgreSQL
+JWT_SECRET=            # Chave secreta JWT (mín. 32 caracteres)
+SMTP_HOST=             # Servidor SMTP
+SMTP_PORT=             # Porta SMTP
+SMTP_USER=             # Usuário SMTP
+SMTP_PASS=             # Senha SMTP
 ```
 
-| Serviço    | URL                           |
-|------------|-------------------------------|
-| Frontend   | http://localhost:3000         |
-| Backend API| http://localhost:8080         |
-| Swagger    | http://localhost:8080/swagger |
-| PostgreSQL | localhost:5432                |
+### Subir tudo com um comando
+
+```bash
+cd merendachef
+docker-compose up --build -d
+```
+
+| Serviço     | URL                            |
+|-------------|--------------------------------|
+| Frontend    | http://localhost:3000          |
+| Backend API | http://localhost:8080          |
+| Swagger     | http://localhost:8080/swagger  |
+| PostgreSQL  | localhost:5432                 |
 
 ### Desenvolvimento local (sem Docker)
+
 ```bash
 # Backend
 cd backend
@@ -74,13 +86,11 @@ npm run dev
 
 ---
 
-## 👤 Credenciais Padrão
+## 👤 Acesso Inicial
 
-| Tipo  | Usuário                    | Senha        |
-|-------|----------------------------|--------------|
-| Admin | admin@faetec.rj.gov.br     | Admin@2025!  |
+Um administrador padrão é criado automaticamente na primeira inicialização do sistema.
 
-> ⚠️ Altere as credenciais antes de ir para produção!
+> ⚠️ Altere as credenciais padrão antes de ir para produção!
 
 ---
 
@@ -107,57 +117,41 @@ npm run dev
    - Alimentos In Natura
 4. **Ranking automático** com desempate:
    1º In Natura → 2º Viabilidade → 3º Criatividade → 4º Regional
+5. **Convocação** para 2ª fase com data, local e envio automático de e-mail
 
 ---
 
 ## 🔐 Segurança
-- Senhas hasheadas com **BCrypt** (cost factor 10)
+
+- Senhas hasheadas com **BCrypt**
 - Autenticação via **JWT** (HS256, expiração 8h)
-- Validação de **CPF** (algoritmo oficial)
+- Validação de **CPF** pelo algoritmo oficial
 - Upload restrito a `.pdf`, `.jpg`, `.jpeg`, `.png`
 - Sanitização de arquivos por MIME type + extensão
 - **LGPD**: termo explícito na inscrição
+- CORS configurado via variáveis de ambiente
 
 ---
 
 ## 🌱 Ingredientes (Seed Automático)
 
-O sistema já popula automaticamente o banco com os ingredientes do Anexo I agrupados por categoria:
-- Grãos e Cereais (8 itens)
-- Proteínas Animais (7 itens)
-- Hortaliças — In Natura (19 itens)
-- Frutas — In Natura (8 itens)
-- Laticínios e Derivados (5 itens)
-- Temperos e Condimentos (12 itens)
-- Leguminosas (4 itens)
+O sistema popula automaticamente o banco com os ingredientes do Anexo I agrupados por categoria:
+
+- Grãos e Cereais
+- Proteínas Animais
+- Hortaliças — In Natura
+- Frutas — In Natura
+- Laticínios e Derivados
+- Temperos e Condimentos
+- Leguminosas
 
 ---
 
-## ⚙️ Variáveis de Ambiente
+## 🗃️ Banco de Dados
 
-```env
-DB_PASSWORD=MerendaChef@2025!
-JWT_SECRET=MerendaChefSuperSecretKey2025!XYZ
-SMTP_HOST=smtp.mailtrap.io
-SMTP_PORT=587
-SMTP_USER=seu_usuario_mailtrap
-SMTP_PASS=sua_senha_mailtrap
-```
+O `Program.cs` cria as tabelas automaticamente via `EnsureCreated()` ao subir o container.
 
-Para ativar e-mail real, edite `backend/Services/EmailService.cs` e descomente o bloco MailKit.
-
----
-
-## 📧 Serviço de E-mail (Mock)
-
-Em desenvolvimento, o e-mail é **logado no console** do container backend:
-```
-docker-compose logs backend | grep "MOCK EMAIL"
-```
-
----
-
-## 🗃️ Migrations EF Core
+Para migrations manuais:
 
 ```bash
 cd backend
@@ -165,4 +159,14 @@ dotnet ef migrations add InitialCreate
 dotnet ef database update
 ```
 
-O `Program.cs` aplica as migrations automaticamente ao subir via Docker.
+---
+
+## 🐳 Infraestrutura
+
+Três containers orquestrados via Docker Compose:
+
+| Container | Imagem | Função |
+|-----------|--------|--------|
+| `merendachef_db` | postgres:16-alpine | Banco de dados |
+| `merendachef_api` | ASP.NET Core 8 | API REST |
+| `merendachef_web` | nginx:alpine | Frontend React |
