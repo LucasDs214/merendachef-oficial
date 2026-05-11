@@ -4,6 +4,7 @@ public interface IEmailService
 {
     Task EnviarSenhaTemporariaAsync(string destinatario, string nome, string senha);
     Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local);
+    Task EnviarComprovanteInscricaoAsync(string destinatario, string nome, string nomeReceita, string hash, DateTime dataInscricao);
 }
 
 public class SmtpEmailService : IEmailService
@@ -30,14 +31,13 @@ public class SmtpEmailService : IEmailService
         await client.AuthenticateAsync(user, pass);
 
         var message = new MimeKit.MimeMessage();
-        message.From.Add(MimeKit.MailboxAddress.Parse(from));
+        message.From.Add(new MimeKit.MailboxAddress("MerendaChef - Não Responda", from));
         message.To.Add(MimeKit.MailboxAddress.Parse(destinatario));
         message.Subject = assunto;
         message.Body = new MimeKit.TextPart("html") { Text = corpoHtml };
 
         await client.SendAsync(message);
         await client.DisconnectAsync(true);
-
         _logger.LogInformation("✅ E-mail enviado para {Email}: {Assunto}", destinatario, assunto);
     }
 
@@ -57,17 +57,42 @@ public class SmtpEmailService : IEmailService
                     {senha}
                 </div>
                 <p style='margin-top:20px'>Acesse o sistema e troque sua senha no primeiro login.</p>
-                <a href='http://10.200.15.32:3000/login' 
-                   style='display:inline-block;background:#e85d24;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:10px'>
-                    Acessar MerendaChef
-                </a>
+                <p style='color:#e85d24;font-weight:bold'>⚠️ Você deverá alterar sua senha no primeiro acesso.</p>
             </div>
             <div style='padding:15px;background:#f5f5f5;text-align:center;font-size:12px;color:#666'>
                 FAETEC — Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro
             </div>
         </div>";
-
         await EnviarAsync(destinatario, "MerendaChef — Sua senha temporária", html);
+    }
+
+    public async Task EnviarComprovanteInscricaoAsync(string destinatario, string nome, string nomeReceita, string hash, DateTime dataInscricao)
+    {
+        var html = $@"
+        <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
+            <div style='background:#e85d24;padding:20px;text-align:center'>
+                <h1 style='color:white;margin:0'>🍳 MerendaChef</h1>
+                <p style='color:white;margin:5px 0'>Concurso Culinário FAETEC 2026</p>
+            </div>
+            <div style='padding:30px;background:#fff'>
+                <h2>✅ Inscrição Confirmada!</h2>
+                <p>Olá, <strong>{nome}</strong>!</p>
+                <p>Sua inscrição no Concurso Culinário FAETEC 2026 foi recebida com sucesso.</p>
+                <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
+                    <p style='margin:5px 0'><strong>🍽️ Receita:</strong> {nomeReceita}</p>
+                    <p style='margin:5px 0'><strong>📅 Data:</strong> {dataInscricao:dd/MM/yyyy 'às' HH:mm}</p>
+                    <p style='margin:5px 0'><strong>🔑 Código de Verificação:</strong></p>
+                    <div style='background:#f5f5f5;padding:10px;text-align:center;font-size:18px;font-weight:bold;letter-spacing:2px;border-radius:6px;margin-top:8px'>
+                        {hash}
+                    </div>
+                </div>
+                <p style='color:#666;font-size:13px'>Guarde este e-mail. O código de verificação poderá ser solicitado para comprovar sua inscrição.</p>
+            </div>
+            <div style='padding:15px;background:#f5f5f5;text-align:center;font-size:12px;color:#666'>
+                FAETEC — Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro
+            </div>
+        </div>";
+        await EnviarAsync(destinatario, "MerendaChef — Comprovante de Inscrição", html);
     }
 
     public async Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local)
@@ -80,23 +105,24 @@ public class SmtpEmailService : IEmailService
             </div>
             <div style='padding:30px;background:#fff'>
                 <h2>🏆 Parabéns, {nome}!</h2>
-                <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores do concurso!</p>
-                <p>Você está convocado para a <strong>etapa presencial</strong>:</p>
+                <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores!</p>
                 <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
                     <p style='margin:5px 0'><strong>📅 Data:</strong> {data:dd/MM/yyyy 'às' HH:mm}</p>
                     <p style='margin:5px 0'><strong>📍 Local:</strong> {local}</p>
                 </div>
-                <p style='color:#e85d24;font-weight:bold'>⚠️ Compareça com documento de identidade e com antecedência.</p>
-                <a href='http://10.200.15.32:3000/minha-inscricao'
-                   style='display:inline-block;background:#e85d24;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;margin-top:10px'>
-                    Ver minha inscrição
-                </a>
+                <div style='background:#fef3cd;border:1px solid #ffc107;padding:15px;border-radius:8px;margin:15px 0'>
+                    <p style='margin:0;color:#856404;font-weight:bold'>⚠️ Instruções Importantes:</p>
+                    <ul style='color:#856404;margin:10px 0;padding-left:20px'>
+                        <li>Compareça com <strong>no mínimo 30 minutos de antecedência</strong></li>
+                        <li>Traga documento de identidade com foto</li>
+                        <li>O não comparecimento implicará na desclassificação</li>
+                    </ul>
+                </div>
             </div>
             <div style='padding:15px;background:#f5f5f5;text-align:center;font-size:12px;color:#666'>
                 FAETEC — Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro
             </div>
         </div>";
-
-        await EnviarAsync(destinatario, "🏆 MerendaChef — Você foi convocado para a 2ª Fase!", html);
+        await EnviarAsync(destinatario, "🏆 MerendaChef — Convocado para a 2ª Fase!", html);
     }
 }
