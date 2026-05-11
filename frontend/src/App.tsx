@@ -244,8 +244,15 @@ function LoginPage() {
           )}
         </div>
 
-        <div className="text-center mt-4">
-          <Link to="/admin/login" className="text-xs text-gray-400 hover:text-gray-600">Acesso Administrativo</Link>
+        <div className="text-center mt-4 space-y-2">
+          <div>
+            <Link to="/insumos" className="text-xs text-orange-500 hover:text-orange-700">
+              🥕 Consultar insumos disponíveis
+            </Link>
+          </div>
+          <div>
+            <Link to="/admin/login" className="text-xs text-gray-400 hover:text-gray-600">Acesso Administrativo</Link>
+          </div>
         </div>
       </div>
     </div>
@@ -386,12 +393,98 @@ function AdminLoginPage() {
   );
 }
 
+// ── Página Pública de Insumos ──────────────────────────────────
+function InsumoPage() {
+  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState('');
+
+  useEffect(() => {
+    inscricaoApi.ingredientes()
+      .then(r => setIngredientes(r.data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const categorias = [...new Set(ingredientes.map(i => i.categoria))].sort();
+  const filtered = ingredientes.filter(i =>
+    i.nome.toLowerCase().includes(busca.toLowerCase())
+  );
+
+  return (
+    <div className="min-h-screen bg-orange-50">
+      <header className="bg-white border-b border-orange-100 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/favicon.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
+          <span className="font-bold text-orange-700">MerendaChef</span>
+        </div>
+        <Link to="/login" className="text-sm text-orange-600 font-semibold hover:text-orange-800">
+          Fazer Inscrição →
+        </Link>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-black text-gray-800 mb-2">🥕 Insumos Disponíveis</h1>
+          <p className="text-gray-500 text-sm">
+            Consulte os ingredientes do Anexo I (Pregão FAETEC) disponíveis para sua receita antes de se inscrever.
+          </p>
+        </div>
+
+        <input type="text" placeholder="🔍 Buscar ingrediente..."
+          value={busca} onChange={e => setBusca(e.target.value)}
+          className="w-full border border-gray-300 rounded-xl p-3 mb-6 focus:ring-2 focus:ring-orange-400 outline-none bg-white shadow-sm" />
+
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Carregando ingredientes...</div>
+        ) : (
+          <div className="space-y-4">
+            {categorias.map(cat => {
+              const items = filtered.filter(i => i.categoria === cat);
+              if (!items.length) return null;
+              return (
+                <div key={cat} className="bg-white rounded-xl border border-orange-100 shadow-sm overflow-hidden">
+                  <div className="bg-orange-500 px-4 py-2">
+                    <h2 className="font-bold text-white text-sm">{cat}</h2>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {items.map(ing => (
+                      <div key={ing.id} className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-800">{ing.nome}</span>
+                          {ing.isInNatura && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                              In Natura
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">{ing.unidadeMedida}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="text-center mt-8">
+          <Link to="/login"
+            className="inline-block px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition shadow">
+            Fazer minha inscrição →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App Router ─────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/trocar-senha" element={<PrivateRoute role="candidato"><TrocarSenhaPage /></PrivateRoute>} />
         <Route path="/inscricao" element={<PrivateRoute role="candidato"><InscricaoPage /></PrivateRoute>} />
