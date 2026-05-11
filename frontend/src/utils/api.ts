@@ -59,4 +59,8 @@ export const adminApi = {
     api.get('/api/admin/ranking'),
   convocar: (id: string, dados: object) =>
     api.patch(`/api/admin/inscricoes/${id}/convocar`, dados),
+  listarAdmins: () =>
+    api.get('/api/admin/admins'),
+  criarAdmin: (dados: object) =>
+    api.post('/api/admin/admins', dados),
 };
