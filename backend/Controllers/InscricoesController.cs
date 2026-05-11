@@ -68,6 +68,26 @@ public class InscricoesController : ControllerBase
         _db.Inscricoes.Add(inscricao);
         await _db.SaveChangesAsync();
 
+        // Gerar hash único de confirmação
+        var hash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"{candidato.Cpf}{inscricao.Id}{DateTime.UtcNow}")
+            )
+        ).Substring(0, 12).ToUpper();
+        
+        inscricao.HashInscricao = hash;
+        inscricao.DataConfirmacao = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        
+        // Enviar comprovante por e-mail
+        await _email.EnviarComprovanteInscricaoAsync(
+            candidato.Email,
+            candidato.Nome,
+            dto.NomeReceita,
+            hash,
+            inscricao.CriadaEm
+        );
+
         return Ok(new { id = inscricao.Id, message = "Inscrição realizada com sucesso!" });
     }
 
