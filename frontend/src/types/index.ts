@@ -16,22 +16,20 @@ export interface Ingrediente {
 }
 
 export interface WizardData {
-  // Passo 1
   unidadeEscolar: string;
   nomeDiretor: string;
   matricula: string;
   cargo: string;
-  // Passo 2
+  telefone: string;
   comprovanteVinculo: File | null;
-  // Passo 3
   nomeReceita: string;
   descricao: string;
+  modoPreparo: string;
   fotoReceita: File | null;
-  // Passo 4
-  ingredienteIds: number[];
-  // Passo 5
+  ingredientes: { id: number; quantidade: string }[];
   aceitouLgpd: boolean;
   autorizouUsoImagem: boolean;
+  aceitouTermosUso: boolean;
 }
 
 export interface InscricaoAdmin {
