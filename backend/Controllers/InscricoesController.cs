@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using MerendaChef.Api.Data;
 using MerendaChef.Api.Models;
+using MerendaChef.Api.Services;
 
 namespace MerendaChef.Api.Controllers;
 
@@ -13,24 +14,23 @@ public class InscricoesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly IEmailService _email;
 
-    public InscricoesController(AppDbContext db, IWebHostEnvironment env)
+    public InscricoesController(AppDbContext db, IWebHostEnvironment env, IEmailService email)
     {
-        _db = db; _env = env;
+        _db = db; _env = env; _email = email;
     }
 
     [HttpPost]
     [Authorize(Roles = "Candidato")]
-    [RequestSizeLimit(20_000_000)] // 20MB
+    [RequestSizeLimit(20_000_000)]
     public async Task<IActionResult> Inscrever([FromForm] InscricaoFormDto dto)
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        // Atualizar dados funcionais do candidato
         var candidato = await _db.Candidatos.FindAsync(userId);
         if (candidato == null) return Unauthorized();
 
-        // Verificar unicidade (1 inscrição por CPF)
         if (await _db.Inscricoes.AnyAsync(i => i.CandidatoId == userId))
             return Conflict(new { error = "Você já possui uma inscrição cadastrada." });
 
@@ -38,12 +38,12 @@ public class InscricoesController : ControllerBase
         candidato.NomeDiretor = dto.NomeDiretor;
         candidato.Matricula = dto.Matricula;
         candidato.Cargo = dto.Cargo;
+        candidato.Telefone = dto.Telefone;
+        candidato.AceitouTermosUso = dto.AceitouTermosUso;
 
-        // Salvar comprovante (obrigatório)
         var comprovanteNome = await SalvarArquivo(dto.ComprovanteVinculo, userId);
         if (comprovanteNome == null) return BadRequest(new { error = "Comprovante de vínculo é obrigatório." });
 
-        // Salvar foto da receita (opcional)
         string? fotoNome = dto.FotoReceita != null
             ? await SalvarArquivo(dto.FotoReceita, userId)
             : null;
@@ -53,15 +53,16 @@ public class InscricoesController : ControllerBase
             CandidatoId = userId,
             NomeReceita = dto.NomeReceita,
             Descricao = dto.Descricao,
+            ModoPreparo = dto.ModoPreparo,
             ComprovanteVinculo = comprovanteNome!,
             FotoReceita = fotoNome,
             AceitouLgpd = dto.AceitouLgpd,
             AutorizouUsoImagem = dto.AutorizouUsoImagem,
             Status = StatusInscricao.Pendente,
-            Ingredientes = dto.IngredienteIds.Select(id => new InscricaoIngrediente
+            Ingredientes = dto.Ingredientes.Select(i => new InscricaoIngrediente
             {
-                IngredienteId = id,
-                Quantidade = ""
+                IngredienteId = i.Id,
+                Quantidade = i.Quantidade
             }).ToList()
         };
 
@@ -73,13 +74,12 @@ public class InscricoesController : ControllerBase
             System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes($"{candidato.Cpf}{inscricao.Id}{DateTime.UtcNow}")
             )
-        ).Substring(0, 12).ToUpper();
-        
+        )[..12].ToUpper();
+
         inscricao.HashInscricao = hash;
         inscricao.DataConfirmacao = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        
-        // Enviar comprovante por e-mail
+
         await _email.EnviarComprovanteInscricaoAsync(
             candidato.Email,
             candidato.Nome,
@@ -88,7 +88,7 @@ public class InscricoesController : ControllerBase
             inscricao.CriadaEm
         );
 
-        return Ok(new { id = inscricao.Id, message = "Inscrição realizada com sucesso!" });
+        return Ok(new { id = inscricao.Id, hash, message = "Inscrição realizada com sucesso!" });
     }
 
     [HttpGet("minha")]
@@ -99,14 +99,17 @@ public class InscricoesController : ControllerBase
         var inscricao = await _db.Inscricoes
             .Include(i => i.Ingredientes).ThenInclude(ii => ii.Ingrediente)
             .FirstOrDefaultAsync(i => i.CandidatoId == userId);
-    
+
         if (inscricao == null) return NotFound(new { error = "Nenhuma inscrição encontrada." });
-    
+
         return Ok(new {
             id = inscricao.Id,
             nomeReceita = inscricao.NomeReceita,
             descricao = inscricao.Descricao,
+            modoPreparo = inscricao.ModoPreparo,
             fotoReceita = inscricao.FotoReceita,
+            hashInscricao = inscricao.HashInscricao,
+            dataConfirmacao = inscricao.DataConfirmacao,
             status = inscricao.Status.ToString(),
             motivoEliminacao = inscricao.MotivoEliminacao,
             dataSegundaFase = inscricao.DataSegundaFase,
@@ -115,13 +118,24 @@ public class InscricoesController : ControllerBase
             ingredientes = inscricao.Ingredientes.Select(ii => new {
                 ii.Ingrediente.Id,
                 ii.Ingrediente.Nome,
-                ii.Ingrediente.IsInNatura
+                ii.Ingrediente.IsInNatura,
+                ii.Quantidade
             }),
             criadaEm = inscricao.CriadaEm
         });
     }
 
-    // Fase classificatória - anônimo
+    // Endpoint público — lista ingredientes para consulta antes do login
+    [HttpGet("ingredientes")]
+    public async Task<IActionResult> ListarIngredientes()
+    {
+        var ingredientes = await _db.Ingredientes
+            .OrderBy(i => i.Categoria).ThenBy(i => i.Nome)
+            .Select(i => new { i.Id, i.Nome, i.Categoria, i.IsInNatura, i.UnidadeMedida })
+            .ToListAsync();
+        return Ok(ingredientes);
+    }
+
     [HttpGet("habilitadas")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ListarHabilitadas()
@@ -142,16 +156,6 @@ public class InscricoesController : ControllerBase
         return Ok(inscricoes);
     }
 
-    [HttpGet("ingredientes")]
-    public async Task<IActionResult> ListarIngredientes()
-    {
-        var ingredientes = await _db.Ingredientes
-            .OrderBy(i => i.Categoria).ThenBy(i => i.Nome)
-            .Select(i => new { i.Id, i.Nome, i.Categoria, i.IsInNatura, i.UnidadeMedida })
-            .ToListAsync();
-        return Ok(ingredientes);
-    }
-
     private async Task<string?> SalvarArquivo(IFormFile? file, Guid userId)
     {
         if (file == null) return null;
@@ -168,18 +172,9 @@ public class InscricoesController : ControllerBase
         await file.CopyToAsync(stream);
         return $"{userId}/{nome}";
     }
-
-    private static object MapToDto(Inscricao i) => new
-    {
-        id = i.Id,
-        nomeReceita = i.NomeReceita,
-        descricao = i.Descricao,
-        status = i.Status.ToString(),
-        motivoEliminacao = i.MotivoEliminacao,
-        ingredientes = i.Ingredientes.Select(ii => new { ii.Ingrediente.Id, ii.Ingrediente.Nome }),
-        criadaEm = i.CriadaEm
-    };
 }
+
+// ── DTOs ──────────────────────────────────────────────────────
 
 public class InscricaoFormDto
 {
@@ -188,6 +183,7 @@ public class InscricaoFormDto
     public string NomeDiretor { get; set; } = string.Empty;
     public string Matricula { get; set; } = string.Empty;
     public string Cargo { get; set; } = string.Empty;
+    public string Telefone { get; set; } = string.Empty;
 
     // Passo 2
     public IFormFile? ComprovanteVinculo { get; set; }
@@ -195,12 +191,20 @@ public class InscricaoFormDto
     // Passo 3
     public string NomeReceita { get; set; } = string.Empty;
     public string Descricao { get; set; } = string.Empty;
+    public string ModoPreparo { get; set; } = string.Empty;
     public IFormFile? FotoReceita { get; set; }
 
-    // Passo 4
-    public List<int> IngredienteIds { get; set; } = new();
+    // Passo 4 — ingredientes com quantidade
+    public List<IngredienteItemDto> Ingredientes { get; set; } = new();
 
     // Passo 5
     public bool AceitouLgpd { get; set; }
     public bool AutorizouUsoImagem { get; set; }
+    public bool AceitouTermosUso { get; set; }
+}
+
+public class IngredienteItemDto
+{
+    public int Id { get; set; }
+    public string Quantidade { get; set; } = string.Empty;
 }
