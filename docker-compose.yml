@@ -1,18 +1,16 @@
 version: '3.9'
-
 services:
   db:
     image: postgres:16-alpine
     container_name: merendachef_db
     restart: unless-stopped
     environment:
+      TZ: America/Sao_Paulo
       POSTGRES_DB: merendachef
       POSTGRES_USER: merendachef_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-MerendaChef@2025!}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Se você for usar o script de inicialização, certifique-se que o ARQUIVO init.sql existe
-      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5433:5432"
     healthcheck:
@@ -29,6 +27,7 @@ services:
     container_name: merendachef_api
     restart: unless-stopped
     environment:
+      TZ: America/Sao_Paulo
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=merendachef;Username=merendachef_user;Password=${DB_PASSWORD:-MerendaChef@2025!}"
       Jwt__Secret: ${JWT_SECRET:-MerendaChefSuperSecretKey2025!XYZ}
@@ -58,6 +57,8 @@ services:
         VITE_API_URL: http://10.200.2.161:8181
     container_name: merendachef_web
     restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
     ports:
       - "3100:80"
     depends_on:
