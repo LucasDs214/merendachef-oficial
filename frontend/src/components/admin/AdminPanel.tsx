@@ -14,16 +14,23 @@ interface AdminItem {
   criadoEm: string;
 }
 
-// Labels legíveis para os campos do candidato
 const LABELS: Record<string, string> = {
   nome: 'Nome', cpf: 'CPF', email: 'E-mail', telefone: 'Telefone/WhatsApp',
   unidade: 'Unidade', diretor: 'Diretor(a)', matricula: 'Matrícula', cargo: 'Cargo'
 };
 
+const CRITERIOS = [
+  { key: 'viabilidade', label: 'Viabilidade nas Cozinhas', max: 5 },
+  { key: 'criatividade', label: 'Criatividade e Originalidade', max: 15 },
+  { key: 'culturaRegional', label: 'Valorização Cultural', max: 10 },
+  { key: 'alimentosInNatura', label: 'Alimentos In Natura (PNAE)', max: 20 },
+];
+
 export function AdminPanel() {
   const { logout } = useAuthStore();
   const [tab, setTab] = useState<Tab>('inscricoes');
   const [inscricoes, setInscricoes] = useState<InscricaoAdmin[]>([]);
+  const [todasInscricoes, setTodasInscricoes] = useState<InscricaoAdmin[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [admins, setAdmins] = useState<AdminItem[]>([]);
   const [filtroStatus, setFiltroStatus] = useState('');
@@ -40,8 +47,12 @@ export function AdminPanel() {
   const carregar = async () => {
     setLoading(true);
     try {
-      const res = await adminApi.listar(filtroStatus || undefined);
-      setInscricoes(res.data);
+      const [filtradas, todas] = await Promise.all([
+        adminApi.listar(filtroStatus || undefined),
+        adminApi.listar(undefined)
+      ]);
+      setInscricoes(filtradas.data);
+      setTodasInscricoes(todas.data);
     } finally { setLoading(false); }
   };
 
@@ -58,6 +69,18 @@ export function AdminPanel() {
   useEffect(() => { carregar(); }, [filtroStatus]);
   useEffect(() => { if (tab === 'ranking') carregarRanking(); }, [tab]);
   useEffect(() => { if (tab === 'admins') carregarAdmins(); }, [tab]);
+
+  const abrirFicha = (insc: InscricaoAdmin) => {
+    setSelected(insc);
+    setMotivoElim('');
+    setDadosConvocacao({ data: '', local: '' });
+    setNotas({
+      viabilidade: insc.notas.viabilidade || 0,
+      criatividade: insc.notas.criatividade || 0,
+      culturaRegional: insc.notas.culturaRegional || 0,
+      alimentosInNatura: insc.notas.alimentosInNatura || 0
+    });
+  };
 
   const habilitar = async (id: string) => {
     await adminApi.habilitar(id);
@@ -109,8 +132,7 @@ export function AdminPanel() {
   const abrirArquivo = (caminho: string) => {
     const url = `${API_URL}/uploads/${caminho}`;
     const ext = caminho.split('.').pop()?.toLowerCase();
-    const tipo = ext === 'pdf' ? 'pdf' : 'imagem';
-    setModalArquivo({ url, tipo });
+    setModalArquivo({ url, tipo: ext === 'pdf' ? 'pdf' : 'imagem' });
   };
 
   const statusBadge = (s: string) => {
@@ -122,6 +144,17 @@ export function AdminPanel() {
     };
     return <span className={`px-2 py-1 rounded-full text-xs font-bold ${styles[s] || ''}`}>{s}</span>;
   };
+
+  const formatarData = (data: string) =>
+    new Date(data).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+  const totalNotas = Object.values(notas).reduce((a, b) => a + b, 0);
+  const notasInvalidas = notas.viabilidade > 5 || notas.criatividade > 15 ||
+    notas.culturaRegional > 10 || notas.alimentosInNatura > 20 || totalNotas > 50;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,6 +185,7 @@ export function AdminPanel() {
           ))}
         </div>
 
+        {/* Inscrições */}
         {tab === 'inscricoes' && (
           <>
             <div className="flex gap-3 mb-4 flex-wrap">
@@ -159,7 +193,7 @@ export function AdminPanel() {
                 <button key={s} onClick={() => setFiltroStatus(s)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition
                     ${filtroStatus === s ? 'bg-blue-900 text-white' : 'bg-white border hover:bg-gray-50'}`}>
-                  {s === '' ? 'Todas' : s === 'ConvocadoSegundaFase' ? '2ª Fase' : s} ({inscricoes.filter(i => !s || i.status === s).length})
+                  {s === '' ? 'Todas' : s === 'ConvocadoSegundaFase' ? '2ª Fase' : s} ({todasInscricoes.filter(i => !s || i.status === s).length})
                 </button>
               ))}
             </div>
@@ -170,15 +204,7 @@ export function AdminPanel() {
                 {inscricoes.map(insc => (
                   <div key={insc.id}
                     className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition cursor-pointer"
-                    onClick={() => {
-                      setSelected(insc);
-                      setNotas({
-                        viabilidade: insc.notas.viabilidade || 0,
-                        criatividade: insc.notas.criatividade || 0,
-                        culturaRegional: insc.notas.culturaRegional || 0,
-                        alimentosInNatura: insc.notas.alimentosInNatura || 0
-                      });
-                    }}>
+                    onClick={() => abrirFicha(insc)}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -193,7 +219,7 @@ export function AdminPanel() {
                       {insc.notas.total && (
                         <div className="text-right">
                           <div className="text-2xl font-bold text-orange-600">{insc.notas.total}</div>
-                          <div className="text-xs text-gray-400">pontos</div>
+                          <div className="text-xs text-gray-400">/ 50 pts</div>
                         </div>
                       )}
                     </div>
@@ -204,12 +230,13 @@ export function AdminPanel() {
           </>
         )}
 
+        {/* Ranking */}
         {tab === 'ranking' && (
           <div className="bg-white rounded-xl border overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-blue-900 text-white">
                 <tr>
-                  {['#', 'Candidato', 'Receita', 'In Natura', 'Viab.', 'Criativ.', 'Regional', 'Total'].map(h => (
+                  {['#', 'Candidato', 'Receita', 'In Natura', 'Viab.', 'Criativ.', 'Regional', 'Total', 'Ficha'].map(h => (
                     <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>
                   ))}
                 </tr>
@@ -227,6 +254,16 @@ export function AdminPanel() {
                     <td className="px-4 py-3">{r.notas.criatividade}</td>
                     <td className="px-4 py-3">{r.notas.culturaRegional}</td>
                     <td className="px-4 py-3 font-bold text-orange-600">{r.notas.total}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          const insc = todasInscricoes.find(i => i.candidato.nome === r.candidato);
+                          if (insc) abrirFicha(insc);
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-semibold underline">
+                        Ver →
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -234,6 +271,7 @@ export function AdminPanel() {
           </div>
         )}
 
+        {/* Admins */}
         {tab === 'admins' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border p-6 space-y-4">
@@ -294,26 +332,31 @@ export function AdminPanel() {
         )}
       </div>
 
-      {/* Modal Ficha Técnica */}
+      {/* Modal Ficha Técnica — fecha APENAS no X */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50"
-          onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8"
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8">
             <div className="p-6 border-b flex items-center justify-between">
-              <h2 className="text-xl font-bold">Ficha Técnica — {selected.receita.nome}</h2>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
-            </div>
-            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-
-              {/* Candidato */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">👤 Candidato</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
+                <h2 className="text-xl font-bold">Ficha Técnica</h2>
+                <p className="text-sm text-gray-500">{selected.receita.nome}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {statusBadge(selected.status)}
+                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+              {/* Dados do Candidato */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-bold text-gray-700 mb-3">👤 Dados do Candidato</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                   {Object.entries(selected.candidato).map(([k, v]) => (
-                    <div key={k}>
-                      <span className="text-gray-500">{LABELS[k] || k}:</span>{' '}
-                      <span className="font-medium">{v || '—'}</span>
+                    <div key={k} className="flex flex-col">
+                      <span className="text-xs text-gray-400 mb-0.5">{LABELS[k] || k}</span>
+                      <span className="font-medium text-gray-800">{v || '—'}</span>
                     </div>
                   ))}
                 </div>
@@ -321,62 +364,85 @@ export function AdminPanel() {
 
               {/* Receita */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">🍽️ Receita</h3>
-                <p className="text-sm text-gray-600 mb-2">{selected.receita.descricao}</p>
-                {selected.receita.modoPreparo && (
-                  <div className="mb-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">Modo de Preparo</p>
-                    <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
-                      {selected.receita.modoPreparo}
-                    </p>
-                  </div>
-                )}
+                <h3 className="font-bold text-gray-700 mb-3">🍽️ Receita</h3>
                 {selected.receita.foto && (
-                  <div className="mb-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">Foto do Prato</p>
-                    <img
-                      src={`${API_URL}/uploads/${selected.receita.foto}`}
-                      alt="Foto da receita"
-                      className="rounded-lg max-h-48 object-cover border cursor-pointer hover:opacity-90 transition"
-                      onClick={() => abrirArquivo(selected.receita.foto!)}
-                    />
-                  </div>
+                  <img
+                    src={`${API_URL}/uploads/${selected.receita.foto}`}
+                    alt="Foto da receita"
+                    className="rounded-xl w-full max-h-56 object-cover border cursor-pointer hover:opacity-90 transition mb-3"
+                    onClick={() => abrirArquivo(selected.receita.foto!)}
+                  />
                 )}
-                {selected.receita.comprovante && (
+                <div className="space-y-3">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
-                    <button
-                      onClick={() => abrirArquivo(selected.receita.comprovante!)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
-                      📄 Visualizar Comprovante
-                    </button>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Descrição</p>
+                    <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selected.receita.descricao}</p>
                   </div>
-                )}
+                  {selected.receita.modoPreparo && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Modo de Preparo</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap leading-relaxed">
+                        {selected.receita.modoPreparo}
+                      </p>
+                    </div>
+                  )}
+                  {selected.receita.comprovante && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
+                      <button onClick={() => abrirArquivo(selected.receita.comprovante!)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
+                        📄 Visualizar Comprovante
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Ingredientes com quantidade */}
+              {/* Ingredientes */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">🥕 Ingredientes ({selected.ingredientes.length})</h3>
-                <div className="space-y-1">
+                <h3 className="font-bold text-gray-700 mb-2">
+                  🥕 Ingredientes ({selected.ingredientes.length} —{' '}
+                  <span className="text-green-600">{selected.ingredientes.filter(i => i.isInNatura).length} in natura</span>)
+                </h3>
+                <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                   {selected.ingredientes.map(i => (
-                    <div key={i.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm
-                      ${i.isInNatura ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div key={i.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border
+                      ${i.isInNatura ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-center gap-2">
                         <span className={i.isInNatura ? 'text-green-700 font-medium' : 'text-gray-700'}>{i.nome}</span>
                         {i.isInNatura && <span className="text-xs bg-green-200 text-green-800 px-1.5 rounded">In Natura</span>}
                       </div>
-                      {i.quantidade && (
-                        <span className="text-xs text-gray-500 font-medium">{i.quantidade}</span>
-                      )}
+                      {i.quantidade && <span className="text-xs text-gray-500 font-medium">{i.quantidade}</span>}
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Notas já lançadas */}
+              {selected.notas.total !== null && selected.notas.total !== undefined && (
+                <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                  <h3 className="font-bold text-gray-700 mb-3">📊 Notas Lançadas</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {CRITERIOS.map(({ key, label, max }) => (
+                      <div key={key} className="flex justify-between items-center bg-white rounded-lg px-3 py-2 border">
+                        <span className="text-gray-500 text-xs">{label}</span>
+                        <span className="font-bold text-orange-600">
+                          {selected.notas[key as keyof typeof selected.notas] ?? 0}
+                          <span className="text-gray-400 font-normal">/{max}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-right mt-2 font-black text-orange-600 text-lg">
+                    Total: {selected.notas.total} / 50
+                  </div>
+                </div>
+              )}
+
               {/* Habilitação */}
               {selected.status === 'Pendente' && (
                 <div className="border-t pt-4 space-y-3">
-                  <h3 className="font-bold text-gray-700">Habilitação Técnica</h3>
+                  <h3 className="font-bold text-gray-700">⚖️ Habilitação Técnica</h3>
                   <button onClick={() => habilitar(selected.id)}
                     className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700">
                     ✅ Habilitar Inscrição
@@ -393,33 +459,49 @@ export function AdminPanel() {
                 </div>
               )}
 
-              {/* Notas e Convocação */}
+              {/* Lançar Notas */}
               {selected.status === 'Habilitada' && (
                 <div className="border-t pt-4 space-y-4">
-                  <h3 className="font-bold text-gray-700">Lançar Notas</h3>
+                  <h3 className="font-bold text-gray-700">📊 Lançar Notas <span className="text-gray-400 font-normal text-sm">(total: 50 pontos)</span></h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { key: 'viabilidade', label: 'Viabilidade nas Cozinhas', max: 5 },
-                      { key: 'criatividade', label: 'Criatividade e Originalidade', max: 15 },
-                      { key: 'culturaRegional', label: 'Valorização Cultural', max: 10 },
-                      { key: 'alimentosInNatura', label: 'Alimentos In Natura (PNAE)', max: 20 },
-                    ].map(({ key, label, max }) => (
-                      <div key={key}>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
-                          {label} <span className="text-gray-400">(0–{max})</span>
-                        </label>
-                        <input type="number" min={0} max={max}
-                          value={notas[key as keyof typeof notas]}
-                          onChange={e => setNotas(n => ({ ...n, [key]: Math.min(max, Math.max(0, +e.target.value)) }))}
-                          className="w-full border rounded-lg p-2 text-center font-bold" />
-                      </div>
-                    ))}
+                    {CRITERIOS.map(({ key, label, max }) => {
+                      const val = notas[key as keyof typeof notas];
+                      const invalido = val < 0 || val > max;
+                      return (
+                        <div key={key}>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            {label} <span className="text-gray-400">(máx. {max} pts)</span>
+                          </label>
+                          <input
+                            type="number" min={0} max={max}
+                            value={val}
+                            onChange={e => setNotas(n => ({ ...n, [key]: +e.target.value }))}
+                            className={`w-full border rounded-lg p-2 text-center font-bold outline-none transition
+                              ${invalido
+                                ? 'border-red-400 bg-red-50 text-red-600 focus:ring-2 focus:ring-red-300'
+                                : 'border-gray-300 focus:ring-2 focus:ring-blue-400'}`}
+                          />
+                          {invalido && (
+                            <p className="text-xs text-red-500 mt-1">⚠️ Máximo {max} pontos</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="text-right text-sm font-bold text-orange-600">
-                    Total: {Object.values(notas).reduce((a, b) => a + b, 0)} / 50 pontos
+
+                  <div className={`flex items-center justify-between rounded-lg px-4 py-2 text-sm font-bold transition
+                    ${notasInvalidas ? 'bg-red-50 border border-red-300 text-red-600' : 'bg-orange-50 border border-orange-200 text-orange-600'}`}>
+                    <span>Total</span>
+                    <span>
+                      {totalNotas} / 50 pontos
+                      {notasInvalidas && <span className="ml-2 text-xs font-normal">⚠️ Verifique os valores</span>}
+                    </span>
                   </div>
-                  <button onClick={() => lancarNotas(selected.id)}
-                    className="w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900">
+
+                  <button
+                    onClick={() => lancarNotas(selected.id)}
+                    disabled={notasInvalidas}
+                    className="w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900 transition disabled:opacity-50 disabled:cursor-not-allowed">
                     💾 Salvar Notas
                   </button>
 
@@ -440,27 +522,37 @@ export function AdminPanel() {
                   </div>
                 </div>
               )}
+
+              {/* Dados da Convocação */}
+              {selected.status === 'ConvocadoSegundaFase' && selected.dataSegundaFase && (
+                <div className="border-t pt-4">
+                  <h3 className="font-bold text-gray-700 mb-3">🏆 Dados da Convocação</h3>
+                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-200 space-y-2 text-sm">
+                    <p><span className="text-gray-500">📅 Data:</span> <span className="font-bold ml-1">{formatarData(selected.dataSegundaFase)}</span></p>
+                    {selected.localSegundaFase && (
+                      <p><span className="text-gray-500">📍 Local:</span> <span className="font-bold ml-1">{selected.localSegundaFase}</span></p>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Arquivo (imagem ou PDF) */}
+      {/* Modal Arquivo */}
       {modalArquivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60]"
-          onClick={() => setModalArquivo(null)}>
-          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60]">
+          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
             <button onClick={() => setModalArquivo(null)}
               className="absolute top-2 right-2 text-white bg-black/50 rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80 z-10">
               ✕
             </button>
-            {modalArquivo.tipo === 'imagem' ? (
-              <img src={modalArquivo.url} alt="Arquivo"
-                className="max-h-[85vh] max-w-full rounded-lg object-contain" />
-            ) : (
-              <iframe src={modalArquivo.url} className="w-full h-[85vh] rounded-lg" title="Comprovante" />
-            )}
+            {modalArquivo.tipo === 'imagem'
+              ? <img src={modalArquivo.url} alt="Arquivo" className="max-h-[85vh] max-w-full rounded-lg object-contain" />
+              : <iframe src={modalArquivo.url} className="w-full h-[85vh] rounded-lg" title="Comprovante" />
+            }
           </div>
         </div>
       )}
