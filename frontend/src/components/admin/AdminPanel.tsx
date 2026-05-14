@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminApi } from '../../utils/api';
+import { useAuthStore } from '../../hooks/useAuth';
 import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -13,7 +14,14 @@ interface AdminItem {
   criadoEm: string;
 }
 
+// Labels legíveis para os campos do candidato
+const LABELS: Record<string, string> = {
+  nome: 'Nome', cpf: 'CPF', email: 'E-mail', telefone: 'Telefone/WhatsApp',
+  unidade: 'Unidade', diretor: 'Diretor(a)', matricula: 'Matrícula', cargo: 'Cargo'
+};
+
 export function AdminPanel() {
+  const { logout } = useAuthStore();
   const [tab, setTab] = useState<Tab>('inscricoes');
   const [inscricoes, setInscricoes] = useState<InscricaoAdmin[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
@@ -23,11 +31,11 @@ export function AdminPanel() {
   const [selected, setSelected] = useState<InscricaoAdmin | null>(null);
   const [motivoElim, setMotivoElim] = useState('');
   const [notas, setNotas] = useState({ viabilidade: 0, criatividade: 0, culturaRegional: 0, alimentosInNatura: 0 });
-  const [modalConvocar, setModalConvocar] = useState(false);
   const [dadosConvocacao, setDadosConvocacao] = useState({ data: '', local: '' });
   const [novoAdmin, setNovoAdmin] = useState({ nome: '', email: '', senha: '' });
   const [adminMsg, setAdminMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
   const [loadingAdmin, setLoadingAdmin] = useState(false);
+  const [modalArquivo, setModalArquivo] = useState<{ url: string; tipo: 'imagem' | 'pdf' } | null>(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -53,46 +61,38 @@ export function AdminPanel() {
 
   const habilitar = async (id: string) => {
     await adminApi.habilitar(id);
-    carregar();
-    setSelected(null);
+    carregar(); setSelected(null);
   };
 
   const eliminar = async (id: string) => {
     if (!motivoElim) { alert('Informe o motivo.'); return; }
     await adminApi.eliminar(id, motivoElim);
-    setMotivoElim('');
-    carregar();
-    setSelected(null);
+    setMotivoElim(''); carregar(); setSelected(null);
   };
 
   const lancarNotas = async (id: string) => {
     await adminApi.lancarNotas(id, notas);
-    carregar();
-    setSelected(null);
+    carregar(); setSelected(null);
   };
 
   const convocar = async (id: string) => {
     if (!dadosConvocacao.data || !dadosConvocacao.local) {
-      alert('Preencha data e local.');
-      return;
+      alert('Preencha data e local.'); return;
     }
     await adminApi.convocar(id, {
       dataSegundaFase: dadosConvocacao.data,
       localSegundaFase: dadosConvocacao.local
     });
-    setModalConvocar(false);
-    carregar();
-    setSelected(null);
+    carregar(); setSelected(null);
+    setDadosConvocacao({ data: '', local: '' });
   };
 
   const criarAdmin = async () => {
     if (!novoAdmin.nome || !novoAdmin.email || !novoAdmin.senha) {
-      setAdminMsg({ texto: 'Preencha todos os campos.', tipo: 'erro' });
-      return;
+      setAdminMsg({ texto: 'Preencha todos os campos.', tipo: 'erro' }); return;
     }
     if (novoAdmin.senha.length < 8) {
-      setAdminMsg({ texto: 'A senha deve ter no mínimo 8 caracteres.', tipo: 'erro' });
-      return;
+      setAdminMsg({ texto: 'A senha deve ter no mínimo 8 caracteres.', tipo: 'erro' }); return;
     }
     setLoadingAdmin(true);
     try {
@@ -104,6 +104,13 @@ export function AdminPanel() {
       const err = e as { response?: { data?: { error?: string } } };
       setAdminMsg({ texto: err.response?.data?.error || 'Erro ao criar administrador.', tipo: 'erro' });
     } finally { setLoadingAdmin(false); }
+  };
+
+  const abrirArquivo = (caminho: string) => {
+    const url = `${API_URL}/uploads/${caminho}`;
+    const ext = caminho.split('.').pop()?.toLowerCase();
+    const tipo = ext === 'pdf' ? 'pdf' : 'imagem';
+    setModalArquivo({ url, tipo });
   };
 
   const statusBadge = (s: string) => {
@@ -118,14 +125,20 @@ export function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-blue-900 text-white px-6 py-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg overflow-hidden">
-          <img src="/favicon.png" alt="MerendaChef" className="w-full h-full object-cover" />
+      <header className="bg-blue-900 text-white px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg overflow-hidden">
+            <img src="/favicon.png" alt="MerendaChef" className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">MerendaChef — Administração</h1>
+            <p className="text-blue-200 text-sm">Painel de Gestão do Concurso FAETEC</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold">MerendaChef — Administração</h1>
-          <p className="text-blue-200 text-sm">Painel de Gestão do Concurso FAETEC</p>
-        </div>
+        <button onClick={() => { logout(); window.location.href = '/login'; }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">
+          Sair →
+        </button>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -157,7 +170,15 @@ export function AdminPanel() {
                 {inscricoes.map(insc => (
                   <div key={insc.id}
                     className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition cursor-pointer"
-                    onClick={() => { setSelected(insc); setNotas({ viabilidade: insc.notas.viabilidade || 0, criatividade: insc.notas.criatividade || 0, culturaRegional: insc.notas.culturaRegional || 0, alimentosInNatura: insc.notas.alimentosInNatura || 0 }); }}>
+                    onClick={() => {
+                      setSelected(insc);
+                      setNotas({
+                        viabilidade: insc.notas.viabilidade || 0,
+                        criatividade: insc.notas.criatividade || 0,
+                        culturaRegional: insc.notas.culturaRegional || 0,
+                        alimentosInNatura: insc.notas.alimentosInNatura || 0
+                      });
+                    }}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -165,7 +186,9 @@ export function AdminPanel() {
                           <span className="font-bold text-gray-800">{insc.receita.nome}</span>
                         </div>
                         <p className="text-sm text-gray-500">{insc.candidato.nome} — {insc.candidato.unidade}</p>
-                        <p className="text-xs text-gray-400 mt-1">{insc.ingredientes.length} ingredientes ({insc.ingredientes.filter(i => i.isInNatura).length} in natura)</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {insc.ingredientes.length} ingredientes ({insc.ingredientes.filter(i => i.isInNatura).length} in natura)
+                        </p>
                       </div>
                       {insc.notas.total && (
                         <div className="text-right">
@@ -213,35 +236,28 @@ export function AdminPanel() {
 
         {tab === 'admins' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            {/* Formulário de criação */}
             <div className="bg-white rounded-xl border p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-800">👤 Novo Administrador</h2>
-
               {adminMsg && (
                 <div className={`p-3 rounded-lg text-sm font-medium ${adminMsg.tipo === 'sucesso' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
                   {adminMsg.tipo === 'sucesso' ? '✅' : '⚠️'} {adminMsg.texto}
                 </div>
               )}
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
-                <input type="text" placeholder="Nome do administrador"
-                  value={novoAdmin.nome}
+                <input type="text" placeholder="Nome do administrador" value={novoAdmin.nome}
                   onChange={e => { setNovoAdmin(d => ({ ...d, nome: e.target.value })); setAdminMsg(null); }}
                   className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail</label>
-                <input type="email" placeholder="email@faetec.rj.gov.br"
-                  value={novoAdmin.email}
+                <input type="email" placeholder="email@faetec.rj.gov.br" value={novoAdmin.email}
                   onChange={e => { setNovoAdmin(d => ({ ...d, email: e.target.value })); setAdminMsg(null); }}
                   className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Senha (mín. 8 caracteres)</label>
-                <input type="password" placeholder="Senha de acesso"
-                  value={novoAdmin.senha}
+                <input type="password" placeholder="Senha de acesso" value={novoAdmin.senha}
                   onChange={e => { setNovoAdmin(d => ({ ...d, senha: e.target.value })); setAdminMsg(null); }}
                   className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none" />
               </div>
@@ -251,7 +267,6 @@ export function AdminPanel() {
               </button>
             </div>
 
-            {/* Lista de admins */}
             <div className="bg-white rounded-xl border p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">👥 Administradores Cadastrados</h2>
               {admins.length === 0 ? (
@@ -275,61 +290,90 @@ export function AdminPanel() {
                 </div>
               )}
             </div>
-
           </div>
         )}
       </div>
 
-      {/* Modal Detalhes */}
+      {/* Modal Ficha Técnica */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 overflow-y-auto z-50"
+          onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mt-8 mb-8"
+            onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-bold">Ficha Técnica — {selected.receita.nome}</h2>
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+
+              {/* Candidato */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">Candidato</h3>
+                <h3 className="font-bold text-gray-700 mb-2">👤 Candidato</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {Object.entries(selected.candidato).map(([k, v]) => (
-                    <div key={k}><span className="text-gray-500">{k}:</span> <span className="font-medium">{v}</span></div>
+                    <div key={k}>
+                      <span className="text-gray-500">{LABELS[k] || k}:</span>{' '}
+                      <span className="font-medium">{v || '—'}</span>
+                    </div>
                   ))}
                 </div>
               </div>
 
+              {/* Receita */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">Receita</h3>
-                <p className="text-sm text-gray-600 mb-3">{selected.receita.descricao}</p>
+                <h3 className="font-bold text-gray-700 mb-2">🍽️ Receita</h3>
+                <p className="text-sm text-gray-600 mb-2">{selected.receita.descricao}</p>
+                {selected.receita.modoPreparo && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Modo de Preparo</p>
+                    <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
+                      {selected.receita.modoPreparo}
+                    </p>
+                  </div>
+                )}
                 {selected.receita.foto && (
                   <div className="mb-3">
                     <p className="text-xs font-semibold text-gray-500 mb-1">Foto do Prato</p>
-                    <img src={`${API_URL}/uploads/${selected.receita.foto}`} alt="Foto da receita" className="rounded-lg max-h-48 object-cover border" />
+                    <img
+                      src={`${API_URL}/uploads/${selected.receita.foto}`}
+                      alt="Foto da receita"
+                      className="rounded-lg max-h-48 object-cover border cursor-pointer hover:opacity-90 transition"
+                      onClick={() => abrirArquivo(selected.receita.foto!)}
+                    />
                   </div>
                 )}
                 {selected.receita.comprovante && (
                   <div>
                     <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
-                    <a href={`${API_URL}/uploads/${selected.receita.comprovante}`} target="_blank" rel="noreferrer"
+                    <button
+                      onClick={() => abrirArquivo(selected.receita.comprovante!)}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
                       📄 Visualizar Comprovante
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>
 
+              {/* Ingredientes com quantidade */}
               <div>
-                <h3 className="font-bold text-gray-700 mb-2">Ingredientes ({selected.ingredientes.length})</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="font-bold text-gray-700 mb-2">🥕 Ingredientes ({selected.ingredientes.length})</h3>
+                <div className="space-y-1">
                   {selected.ingredientes.map(i => (
-                    <span key={i.id} className={`text-xs px-2 py-1 rounded-full border
-                      ${i.isInNatura ? 'bg-green-50 border-green-300 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-600'}`}>
-                      {i.nome}
-                    </span>
+                    <div key={i.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm
+                      ${i.isInNatura ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={i.isInNatura ? 'text-green-700 font-medium' : 'text-gray-700'}>{i.nome}</span>
+                        {i.isInNatura && <span className="text-xs bg-green-200 text-green-800 px-1.5 rounded">In Natura</span>}
+                      </div>
+                      {i.quantidade && (
+                        <span className="text-xs text-gray-500 font-medium">{i.quantidade}</span>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
 
+              {/* Habilitação */}
               {selected.status === 'Pendente' && (
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="font-bold text-gray-700">Habilitação Técnica</h3>
@@ -349,27 +393,30 @@ export function AdminPanel() {
                 </div>
               )}
 
+              {/* Notas e Convocação */}
               {selected.status === 'Habilitada' && (
                 <div className="border-t pt-4 space-y-4">
-                  <h3 className="font-bold text-gray-700">Lançar Notas (0–50 por critério)</h3>
+                  <h3 className="font-bold text-gray-700">Lançar Notas</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { key: 'viabilidade', label: 'Viabilidade' },
-                      { key: 'criatividade', label: 'Criatividade' },
-                      { key: 'culturaRegional', label: 'Cultura Regional' },
-                      { key: 'alimentosInNatura', label: 'Alimentos In Natura' },
-                    ].map(({ key, label }) => (
+                      { key: 'viabilidade', label: 'Viabilidade nas Cozinhas', max: 5 },
+                      { key: 'criatividade', label: 'Criatividade e Originalidade', max: 15 },
+                      { key: 'culturaRegional', label: 'Valorização Cultural', max: 10 },
+                      { key: 'alimentosInNatura', label: 'Alimentos In Natura (PNAE)', max: 20 },
+                    ].map(({ key, label, max }) => (
                       <div key={key}>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
-                        <input type="number" min={0} max={50}
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          {label} <span className="text-gray-400">(0–{max})</span>
+                        </label>
+                        <input type="number" min={0} max={max}
                           value={notas[key as keyof typeof notas]}
-                          onChange={e => setNotas(n => ({ ...n, [key]: +e.target.value }))}
+                          onChange={e => setNotas(n => ({ ...n, [key]: Math.min(max, Math.max(0, +e.target.value)) }))}
                           className="w-full border rounded-lg p-2 text-center font-bold" />
                       </div>
                     ))}
                   </div>
                   <div className="text-right text-sm font-bold text-orange-600">
-                    Total: {Object.values(notas).reduce((a, b) => a + b, 0)} pontos
+                    Total: {Object.values(notas).reduce((a, b) => a + b, 0)} / 50 pontos
                   </div>
                   <button onClick={() => lancarNotas(selected.id)}
                     className="w-full py-3 bg-blue-800 text-white rounded-xl font-semibold hover:bg-blue-900">
@@ -394,6 +441,26 @@ export function AdminPanel() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Arquivo (imagem ou PDF) */}
+      {modalArquivo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60]"
+          onClick={() => setModalArquivo(null)}>
+          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
+            onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModalArquivo(null)}
+              className="absolute top-2 right-2 text-white bg-black/50 rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80 z-10">
+              ✕
+            </button>
+            {modalArquivo.tipo === 'imagem' ? (
+              <img src={modalArquivo.url} alt="Arquivo"
+                className="max-h-[85vh] max-w-full rounded-lg object-contain" />
+            ) : (
+              <iframe src={modalArquivo.url} className="w-full h-[85vh] rounded-lg" title="Comprovante" />
+            )}
           </div>
         </div>
       )}
