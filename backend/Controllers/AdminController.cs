@@ -14,6 +14,8 @@ public class AdminController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IEmailService _email;
+    private static readonly TimeZoneInfo BrasiliaZone =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
     public AdminController(AppDbContext db, IEmailService email)
     {
@@ -42,6 +44,7 @@ public class AdminController : ControllerBase
                 nome = i.Candidato.Nome,
                 cpf = MaskCpf(i.Candidato.Cpf),
                 email = i.Candidato.Email,
+                telefone = i.Candidato.Telefone,   // ← adicionado
                 unidade = i.Candidato.UnidadeEscolar,
                 diretor = i.Candidato.NomeDiretor,
                 matricula = i.Candidato.Matricula,
@@ -51,6 +54,7 @@ public class AdminController : ControllerBase
             {
                 nome = i.NomeReceita,
                 descricao = i.Descricao,
+                modoPreparo = i.ModoPreparo,
                 foto = i.FotoReceita,
                 comprovante = i.ComprovanteVinculo
             },
@@ -59,7 +63,8 @@ public class AdminController : ControllerBase
                 ii.Ingrediente.Id,
                 ii.Ingrediente.Nome,
                 ii.Ingrediente.Categoria,
-                ii.Ingrediente.IsInNatura
+                ii.Ingrediente.IsInNatura,
+                ii.Quantidade                      // ← adicionado
             }),
             status = i.Status.ToString(),
             motivoEliminacao = i.MotivoEliminacao,
@@ -107,9 +112,15 @@ public class AdminController : ControllerBase
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser pontuadas." });
 
-        if (!ValidarNota(dto.Viabilidade) || !ValidarNota(dto.Criatividade) ||
-            !ValidarNota(dto.CulturaRegional) || !ValidarNota(dto.AlimentosInNatura))
-            return BadRequest(new { error = "Notas devem estar entre 0 e 50." });
+        // Validação por limite de cada critério conforme edital
+        if (dto.Viabilidade < 0 || dto.Viabilidade > 5)
+            return BadRequest(new { error = "Viabilidade: 0 a 5 pontos." });
+        if (dto.Criatividade < 0 || dto.Criatividade > 15)
+            return BadRequest(new { error = "Criatividade: 0 a 15 pontos." });
+        if (dto.CulturaRegional < 0 || dto.CulturaRegional > 10)
+            return BadRequest(new { error = "Cultura Regional: 0 a 10 pontos." });
+        if (dto.AlimentosInNatura < 0 || dto.AlimentosInNatura > 20)
+            return BadRequest(new { error = "Alimentos In Natura: 0 a 20 pontos." });
 
         inscricao.NotaViabilidade = dto.Viabilidade;
         inscricao.NotaCriatividade = dto.Criatividade;
@@ -166,19 +177,25 @@ public class AdminController : ControllerBase
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
 
+        // Tratar data como horário de Brasília
+        var dataUtc = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Unspecified);
+        var dataLocalBrasilia = TimeZoneInfo.ConvertTimeToUtc(dataUtc, BrasiliaZone);
+
         inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
-        inscricao.DataSegundaFase = dto.DataSegundaFase;
-        inscricao.DataSegundaFase = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Utc);
+        inscricao.DataSegundaFase = dataLocalBrasilia;
+        inscricao.LocalSegundaFase = dto.LocalSegundaFase;
         inscricao.ConvocadoEm = DateTime.UtcNow;
         inscricao.AtualizadaEm = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
+        // Enviar e-mail com horário em Brasília
+        var dataParaEmail = TimeZoneInfo.ConvertTimeFromUtc(dataLocalBrasilia, BrasiliaZone);
         await _email.EnviarConvocacaoSegundaFaseAsync(
             inscricao.Candidato.Email,
             inscricao.Candidato.Nome,
             inscricao.NomeReceita,
-            dto.DataSegundaFase,
+            dataParaEmail,
             dto.LocalSegundaFase
         );
 
@@ -206,12 +223,11 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> ListarAdmins()
     {
         var admins = await _db.Admins
+            .OrderBy(a => a.Nome)
             .Select(a => new { a.Id, a.Nome, a.Email, a.CriadoEm })
             .ToListAsync();
         return Ok(admins);
     }
-
-    private static bool ValidarNota(decimal nota) => nota >= 0 && nota <= 50;
 
     private static string MaskCpf(string cpf) =>
         cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
