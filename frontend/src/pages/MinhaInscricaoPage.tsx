@@ -5,14 +5,21 @@ import { useAuthStore } from '../hooks/useAuth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
+interface CandidatoInfo {
+  nome: string; cpf: string; email: string; telefone: string;
+  unidadeEscolar: string; nomeDiretor: string; matricula: string; cargo: string;
+}
+
 interface MinhaInscricao {
   id: string;
+  candidato: CandidatoInfo;
   nomeReceita: string;
   descricao: string;
   modoPreparo?: string;
+  fotoReceita?: string;
+  comprovanteVinculo?: string;
   hashInscricao?: string;
   dataConfirmacao?: string;
-  fotoReceita?: string;
   status: 'Pendente' | 'Habilitada' | 'Eliminada' | 'ConvocadoSegundaFase';
   motivoEliminacao?: string;
   dataSegundaFase?: string;
@@ -28,13 +35,12 @@ export function MinhaInscricaoPage() {
   const [inscricao, setInscricao] = useState<MinhaInscricao | null>(null);
   const [loading, setLoading] = useState(true);
   const [semInscricao, setSemInscricao] = useState(false);
+  const [modalArquivo, setModalArquivo] = useState<{ url: string; tipo: 'imagem' | 'pdf' } | null>(null);
 
   useEffect(() => {
     inscricaoApi.minha()
       .then(r => setInscricao(r.data))
-      .catch(e => {
-        if (e.response?.status === 404) setSemInscricao(true);
-      })
+      .catch(e => { if (e.response?.status === 404) setSemInscricao(true); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -45,33 +51,31 @@ export function MinhaInscricaoPage() {
       hour: '2-digit', minute: '2-digit'
     });
 
+  const abrirArquivo = (caminho: string) => {
+    const url = `${API_URL}/uploads/${caminho}`;
+    const ext = caminho.split('.').pop()?.toLowerCase();
+    setModalArquivo({ url, tipo: ext === 'pdf' ? 'pdf' : 'imagem' });
+  };
+
   const statusConfig = {
     Pendente: {
-      cor: 'bg-yellow-50 border-yellow-300',
-      badge: 'bg-yellow-100 text-yellow-800',
-      icone: '⏳',
-      titulo: 'Inscrição em Análise',
+      cor: 'bg-yellow-50 border-yellow-300', badge: 'bg-yellow-100 text-yellow-800',
+      icone: '⏳', titulo: 'Inscrição em Análise',
       descricao: 'Sua inscrição foi recebida e está sendo analisada pela equipe FAETEC.'
     },
     Habilitada: {
-      cor: 'bg-green-50 border-green-300',
-      badge: 'bg-green-100 text-green-800',
-      icone: '✅',
-      titulo: 'Inscrição Habilitada',
+      cor: 'bg-green-50 border-green-300', badge: 'bg-green-100 text-green-800',
+      icone: '✅', titulo: 'Inscrição Habilitada',
       descricao: 'Sua inscrição foi aprovada na análise técnica! Aguarde o resultado da fase classificatória.'
     },
     Eliminada: {
-      cor: 'bg-red-50 border-red-300',
-      badge: 'bg-red-100 text-red-800',
-      icone: '❌',
-      titulo: 'Inscrição Eliminada',
+      cor: 'bg-red-50 border-red-300', badge: 'bg-red-100 text-red-800',
+      icone: '❌', titulo: 'Inscrição Eliminada',
       descricao: 'Infelizmente sua inscrição foi eliminada na análise técnica.'
     },
     ConvocadoSegundaFase: {
-      cor: 'bg-orange-50 border-orange-400',
-      badge: 'bg-orange-100 text-orange-800',
-      icone: '🏆',
-      titulo: 'Parabéns! Convocado para a 2ª Fase!',
+      cor: 'bg-orange-50 border-orange-400', badge: 'bg-orange-100 text-orange-800',
+      icone: '🏆', titulo: 'Parabéns! Convocado para a 2ª Fase!',
       descricao: 'Sua receita foi selecionada entre as 12 melhores! Você está convocado para a etapa presencial.'
     }
   };
@@ -124,19 +128,14 @@ export function MinhaInscricaoPage() {
                     <h2 className="text-lg font-bold text-gray-800 mt-1">{config.titulo}</h2>
                     <p className="text-sm text-gray-600 mt-1">{config.descricao}</p>
                     {inscricao.motivoEliminacao && (
-                      <p className="text-sm text-red-700 mt-2 font-medium">
-                        Motivo: {inscricao.motivoEliminacao}
-                      </p>
+                      <p className="text-sm text-red-700 mt-2 font-medium">Motivo: {inscricao.motivoEliminacao}</p>
                     )}
                   </div>
                 </div>
 
-                {/* Detalhes da 2ª fase */}
                 {inscricao.status === 'ConvocadoSegundaFase' && (
                   <div className="mt-4 bg-white rounded-xl p-4 border border-orange-200 space-y-3">
-                    <h3 className="font-bold text-orange-800 text-sm uppercase tracking-wide">
-                      📋 Detalhes da Etapa Presencial
-                    </h3>
+                    <h3 className="font-bold text-orange-800 text-sm uppercase tracking-wide">📋 Etapa Presencial</h3>
                     {inscricao.dataSegundaFase && (
                       <div className="flex items-center gap-3 text-sm">
                         <span className="text-2xl">📅</span>
@@ -179,14 +178,36 @@ export function MinhaInscricaoPage() {
                     <p className="text-xs text-gray-500 mb-1">Código de Verificação</p>
                     <p className="text-2xl font-black tracking-widest text-orange-600">{inscricao.hashInscricao}</p>
                     {inscricao.dataConfirmacao && (
-                      <p className="text-xs text-gray-400 mt-2">
-                        Confirmado em {formatarData(inscricao.dataConfirmacao)}
-                      </p>
+                      <p className="text-xs text-gray-400 mt-2">Confirmado em {formatarData(inscricao.dataConfirmacao)}</p>
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-2 text-center">
                     Guarde este código — poderá ser solicitado para comprovar sua inscrição.
                   </p>
+                </div>
+              )}
+
+              {/* Dados do Candidato */}
+              {inscricao.candidato && (
+                <div className="bg-white rounded-2xl shadow p-6 border border-gray-100">
+                  <h3 className="font-bold text-gray-800 mb-4">👤 Seus Dados</h3>
+                  <div className="grid grid-cols-1 gap-3 text-sm">
+                    {[
+                      { label: 'Nome Completo', valor: inscricao.candidato.nome },
+                      { label: 'CPF', valor: inscricao.candidato.cpf },
+                      { label: 'E-mail', valor: inscricao.candidato.email },
+                      { label: 'Telefone / WhatsApp', valor: inscricao.candidato.telefone },
+                      { label: 'Unidade Escolar', valor: inscricao.candidato.unidadeEscolar },
+                      { label: 'Diretor(a)', valor: inscricao.candidato.nomeDiretor },
+                      { label: 'Matrícula', valor: inscricao.candidato.matricula },
+                      { label: 'Cargo', valor: inscricao.candidato.cargo },
+                    ].map(({ label, valor }) => valor ? (
+                      <div key={label} className="flex justify-between items-start gap-4 py-2 border-b border-gray-100 last:border-0">
+                        <span className="text-gray-500 flex-shrink-0">{label}</span>
+                        <span className="font-medium text-gray-800 text-right">{valor}</span>
+                      </div>
+                    ) : null)}
+                  </div>
                 </div>
               )}
 
@@ -196,7 +217,8 @@ export function MinhaInscricaoPage() {
                 {inscricao.fotoReceita && (
                   <img src={`${API_URL}/uploads/${inscricao.fotoReceita}`}
                     alt="Foto da receita"
-                    className="w-full h-48 object-cover rounded-xl mb-4 border" />
+                    className="w-full h-48 object-cover rounded-xl mb-4 border cursor-pointer hover:opacity-90"
+                    onClick={() => abrirArquivo(inscricao.fotoReceita!)} />
                 )}
                 <h4 className="text-lg font-bold text-gray-800">{inscricao.nomeReceita}</h4>
                 <p className="text-sm text-gray-600 mt-2 leading-relaxed">{inscricao.descricao}</p>
@@ -208,30 +230,31 @@ export function MinhaInscricaoPage() {
                     </p>
                   </div>
                 )}
+                {inscricao.comprovanteVinculo && (
+                  <div className="mt-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Comprovante de Vínculo</p>
+                    <button onClick={() => abrirArquivo(inscricao.comprovanteVinculo!)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
+                      📄 Visualizar Comprovante
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Ingredientes com quantidade */}
+              {/* Ingredientes */}
               <div className="bg-white rounded-2xl shadow p-6 border border-gray-100">
-                <h3 className="font-bold text-gray-800 mb-3">
-                  🥕 Ingredientes ({inscricao.ingredientes.length})
-                </h3>
+                <h3 className="font-bold text-gray-800 mb-3">🥕 Ingredientes ({inscricao.ingredientes.length})</h3>
                 <div className="space-y-2">
                   {inscricao.ingredientes.map(i => (
                     <div key={i.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border
                       ${i.isInNatura ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-center gap-2">
-                        <span className={i.isInNatura ? 'text-green-700 font-medium' : 'text-gray-700'}>
-                          {i.nome}
-                        </span>
+                        <span className={i.isInNatura ? 'text-green-700 font-medium' : 'text-gray-700'}>{i.nome}</span>
                         {i.isInNatura && (
-                          <span className="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">
-                            In Natura
-                          </span>
+                          <span className="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">In Natura</span>
                         )}
                       </div>
-                      {i.quantidade && (
-                        <span className="text-xs text-gray-500 font-medium">{i.quantidade}</span>
-                      )}
+                      {i.quantidade && <span className="text-xs text-gray-500 font-medium">{i.quantidade}</span>}
                     </div>
                   ))}
                 </div>
@@ -245,6 +268,24 @@ export function MinhaInscricaoPage() {
           );
         })()}
       </div>
+
+      {/* Modal Arquivo */}
+      {modalArquivo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
+          onClick={() => setModalArquivo(null)}>
+          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
+            onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModalArquivo(null)}
+              className="absolute top-2 right-2 text-white bg-black/50 rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80 z-10">
+              ✕
+            </button>
+            {modalArquivo.tipo === 'imagem'
+              ? <img src={modalArquivo.url} alt="Arquivo" className="max-h-[85vh] max-w-full rounded-lg object-contain" />
+              : <iframe src={modalArquivo.url} className="w-full h-[85vh] rounded-lg" title="Comprovante" />
+            }
+          </div>
+        </div>
+      )}
     </div>
   );
 }
