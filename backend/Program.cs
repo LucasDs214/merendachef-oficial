@@ -70,7 +70,17 @@ app.MapControllers();
 
 app.MapGet("/uploads/{userId}/{fileName}", (string userId, string fileName, IWebHostEnvironment env) => {
     var path = Path.Combine(env.ContentRootPath, "uploads", userId, fileName);
-    return File.Exists(path) ? Results.File(path) : Results.NotFound();
+    if (!File.Exists(path)) return Results.NotFound();
+    
+    var ext = Path.GetExtension(fileName).ToLower();
+    var contentType = ext switch {
+        ".pdf" => "application/pdf",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        _ => "application/octet-stream"
+    };
+    
+    return Results.File(path, contentType, enableRangeProcessing: true);
 });
 
 app.Run();
