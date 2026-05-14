@@ -97,17 +97,30 @@ public class InscricoesController : ControllerBase
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var inscricao = await _db.Inscricoes
+            .Include(i => i.Candidato)
             .Include(i => i.Ingredientes).ThenInclude(ii => ii.Ingrediente)
             .FirstOrDefaultAsync(i => i.CandidatoId == userId);
-
+    
         if (inscricao == null) return NotFound(new { error = "Nenhuma inscrição encontrada." });
-
+    
+        var c = inscricao.Candidato;
         return Ok(new {
             id = inscricao.Id,
+            candidato = new {
+                nome = c.Nome,
+                cpf = c.Cpf.Length == 11 ? $"{c.Cpf[..3]}.{c.Cpf[3..6]}.{c.Cpf[6..9]}-{c.Cpf[9..]}" : c.Cpf,
+                email = c.Email,
+                telefone = c.Telefone,
+                unidadeEscolar = c.UnidadeEscolar,
+                nomeDiretor = c.NomeDiretor,
+                matricula = c.Matricula,
+                cargo = c.Cargo
+            },
             nomeReceita = inscricao.NomeReceita,
             descricao = inscricao.Descricao,
             modoPreparo = inscricao.ModoPreparo,
             fotoReceita = inscricao.FotoReceita,
+            comprovanteVinculo = inscricao.ComprovanteVinculo,
             hashInscricao = inscricao.HashInscricao,
             dataConfirmacao = inscricao.DataConfirmacao,
             status = inscricao.Status.ToString(),
