@@ -11,11 +11,21 @@ public class SmtpEmailService : IEmailService
 {
     private readonly IConfiguration _config;
     private readonly ILogger<SmtpEmailService> _logger;
+    private static readonly TimeZoneInfo BrasiliaZone =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
     public SmtpEmailService(IConfiguration config, ILogger<SmtpEmailService> logger)
     {
         _config = config;
         _logger = logger;
+    }
+
+    private static DateTime ParaBrasilia(DateTime utc)
+    {
+        var dt = utc.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utc, DateTimeKind.Utc)
+            : utc;
+        return TimeZoneInfo.ConvertTimeFromUtc(dt, BrasiliaZone);
     }
 
     private async Task EnviarAsync(string destinatario, string assunto, string corpoHtml)
@@ -68,6 +78,7 @@ public class SmtpEmailService : IEmailService
 
     public async Task EnviarComprovanteInscricaoAsync(string destinatario, string nome, string nomeReceita, string hash, DateTime dataInscricao)
     {
+        var dataBrasilia = ParaBrasilia(dataInscricao);
         var html = $@"
         <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
             <div style='background:#e85d24;padding:20px;text-align:center'>
@@ -80,7 +91,7 @@ public class SmtpEmailService : IEmailService
                 <p>Sua inscrição no Concurso Culinário FAETEC 2026 foi recebida com sucesso.</p>
                 <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
                     <p style='margin:5px 0'><strong>🍽️ Receita:</strong> {nomeReceita}</p>
-                    <p style='margin:5px 0'><strong>📅 Data:</strong> {dataInscricao:dd/MM/yyyy 'às' HH:mm}</p>
+                    <p style='margin:5px 0'><strong>📅 Data:</strong> {dataBrasilia:dd/MM/yyyy 'às' HH:mm} (horário de Brasília)</p>
                     <p style='margin:5px 0'><strong>🔑 Código de Verificação:</strong></p>
                     <div style='background:#f5f5f5;padding:10px;text-align:center;font-size:18px;font-weight:bold;letter-spacing:2px;border-radius:6px;margin-top:8px'>
                         {hash}
@@ -97,6 +108,7 @@ public class SmtpEmailService : IEmailService
 
     public async Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local)
     {
+        // data já chega convertida para Brasília pelo controller
         var html = $@"
         <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
             <div style='background:#e85d24;padding:20px;text-align:center'>
@@ -107,7 +119,7 @@ public class SmtpEmailService : IEmailService
                 <h2>🏆 Parabéns, {nome}!</h2>
                 <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores!</p>
                 <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
-                    <p style='margin:5px 0'><strong>📅 Data:</strong> {data:dd/MM/yyyy 'às' HH:mm}</p>
+                    <p style='margin:5px 0'><strong>📅 Data:</strong> {data:dd/MM/yyyy 'às' HH:mm} (horário de Brasília)</p>
                     <p style='margin:5px 0'><strong>📍 Local:</strong> {local}</p>
                 </div>
                 <div style='background:#fef3cd;border:1px solid #ffc107;padding:15px;border-radius:8px;margin:15px 0'>
