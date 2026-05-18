@@ -41,6 +41,8 @@ services:
       ASPNETCORE_URLS: http://+:8080
       AllowedOrigins__0: http://10.11.134.82:3100
       AllowedOrigins__1: http://localhost:3100
+      AllowedOrigins__2: https://merendachef.faetec.rj.gov.br
+      AllowedOrigins__3: http://merendachef.faetec.rj.gov.br
     ports:
       - "8181:8080"
     depends_on:
@@ -54,7 +56,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://10.11.134.82:8181
+        VITE_API_URL: https://merendachef.faetec.rj.gov.br:8181
     container_name: merendachef_web
     restart: unless-stopped
     environment:
