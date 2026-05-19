@@ -86,6 +86,21 @@ function ErroInline({ message }: { message: string }) {
   );
 }
 
+// ── Redirect Externo ───────────────────────────────────────────
+function RedirectFaetec() {
+  useEffect(() => {
+    window.location.href = 'https://www.faetec.rj.gov.br/';
+  }, []);
+  return (
+    <div className="min-h-screen bg-orange-50 flex items-center justify-center">
+      <div className="text-center">
+        <img src="/favicon.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
+        <p className="text-gray-500">Redirecionando para o site da FAETEC...</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Login Page ─────────────────────────────────────────────────
 function LoginPage() {
   const { setAuth } = useAuthStore();
@@ -269,6 +284,12 @@ function LoginPage() {
             <Link to="/insumos" className="text-xs text-orange-500 hover:text-orange-700">
               🥕 Consultar insumos disponíveis
             </Link>
+          </div>
+          <div>
+            <a href="https://www.faetec.rj.gov.br/" target="_blank" rel="noreferrer"
+              className="text-xs text-blue-500 hover:text-blue-700">
+              📋 Saiba mais sobre o concurso e premiações
+            </a>
           </div>
           <div>
             <Link to="/admin/login" className="text-xs text-gray-400 hover:text-gray-600">Acesso Administrativo</Link>
@@ -506,6 +527,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<RedirectFaetec />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
