@@ -527,7 +527,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<RedirectFaetec />} />
+        {/*<Route path="/" element={<RedirectFaetec />} />*/}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
