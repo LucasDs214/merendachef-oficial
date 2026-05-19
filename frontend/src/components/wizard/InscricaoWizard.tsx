@@ -7,19 +7,19 @@ import type { WizardData, Ingrediente } from '../../types';
 const STEPS = ['Dados Funcionais', 'Documentação', 'Receita', 'Ingredientes', 'Termos'];
 
 const UNIDADES_FAETEC = [
-  'Ete João Luiz do Nascimento',
-  'Ete Juscelino Kubistschek',
+  'ETE João Luiz do Nascimento',
+  'ETE Juscelino Kubistschek',
   'Creche Casa da Criança',
-  'Ete República',
+  'ETE República',
   'Escola Especial Favo de Mel',
   'Iserj',
-  'Ete Ferreira Viana',
-  'Ete Imbariê',
+  'ETE Ferreira Viana',
+  'ETE Imbariê',
   'Marechal Hermes Cozinha Central',
-  'Ete Santa Cruz',
+  'ETE Santa Cruz',
   'Fundamental República',
   'Henrique Lage - Barreto',
-  'Ete Adolpho Bloch',
+  'ETE Adolpho Bloch',
 ];
 
 const TERMOS_TEXTO = `TERMOS DE USO E POLÍTICA DE PRIVACIDADE
