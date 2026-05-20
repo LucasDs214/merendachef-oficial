@@ -173,7 +173,7 @@ function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl shadow-lg mb-4">
-            <img src="/favicon.png" alt="MerendaChef" className="w-20 h-20 rounded-3xl" />
+            <img src="/logo3D.png" alt="MerendaChef" className="w-20 h-20 rounded-3xl" />
           </div>
           <h1 className="text-3xl font-black text-gray-900">MerendaChef</h1>
           <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2026</p>
