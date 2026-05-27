@@ -233,7 +233,59 @@ public class AdminController : ControllerBase
         cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
 }
 
+[HttpPost("candidatos/{id:guid}/reset-senha")]
+public async Task<IActionResult> ResetSenhaCandidato(Guid id, [FromBody] ResetSenhaCandidatoDto dto)
+{
+    var candidato = await _db.Candidatos.FindAsync(id);
+    if (candidato == null) return NotFound(new { error = "Candidato não encontrado." });
+
+    if (!ValidarSenha(dto.NovaSenha, out var erro))
+        return BadRequest(new { error = erro });
+
+    candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+    candidato.PrimeiroAcesso = false;
+    await _db.SaveChangesAsync();
+    return Ok(new { message = "Senha resetada com sucesso." });
+}
+
+[HttpGet("configuracoes")]
+public async Task<IActionResult> GetConfiguracoes()
+{
+    var config = await _db.Configuracoes.FirstOrDefaultAsync();
+    return Ok(new {
+        prazoEdicaoInscricao = config?.PrazoEdicaoInscricao,
+        inscricoesAbertas = config?.InscricoesAbertas ?? true
+    });
+}
+
+[HttpPatch("configuracoes")]
+public async Task<IActionResult> SalvarConfiguracoes([FromBody] ConfiguracoesDto dto)
+{
+    var config = await _db.Configuracoes.FirstOrDefaultAsync();
+    if (config == null)
+    {
+        config = new Configuracao();
+        _db.Configuracoes.Add(config);
+    }
+    config.PrazoEdicaoInscricao = dto.PrazoEdicaoInscricao;
+    config.InscricoesAbertas = dto.InscricoesAbertas;
+    await _db.SaveChangesAsync();
+    return Ok(new { message = "Configurações salvas." });
+}
+
+private static bool ValidarSenha(string senha, out string erro)
+{
+    erro = string.Empty;
+    if (senha.Length < 8) { erro = "A senha deve ter no mínimo 8 caracteres."; return false; }
+    if (!senha.Any(char.IsUpper)) { erro = "Deve conter ao menos uma letra maiúscula."; return false; }
+    if (!senha.Any(char.IsLower)) { erro = "Deve conter ao menos uma letra minúscula."; return false; }
+    if (!senha.Any(c => !char.IsLetterOrDigit(c))) { erro = "Deve conter ao menos um símbolo."; return false; }
+    return true;
+}
+
 public record CriarAdminDto(string Nome, string Email, string Senha);
 public record ConvocarDto(DateTime DataSegundaFase, string LocalSegundaFase);
 public record EliminarDto(string Motivo);
 public record NotasDto(decimal Viabilidade, decimal Criatividade, decimal CulturaRegional, decimal AlimentosInNatura);
+public record ResetSenhaCandidatoDto(string NovaSenha);
+public record ConfiguracoesDto(DateTime? PrazoEdicaoInscricao, bool InscricoesAbertas);
