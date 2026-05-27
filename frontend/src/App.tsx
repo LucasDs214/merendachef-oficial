@@ -7,6 +7,7 @@ import { AdminPanel } from './components/admin/AdminPanel';
 import { MinhaInscricaoPage } from './pages/MinhaInscricaoPage';
 import { maskCpf } from './utils/masks';
 import type { Ingrediente } from './types';
+import { LandingPage } from './pages/LandingPage';
 
 // ── Toast ──────────────────────────────────────────────────────
 function Toast({ message, type, onClose }: { message: string; type: 'error' | 'success'; onClose: () => void }) {
@@ -528,6 +529,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/*<Route path="/" element={<RedirectFaetec />} />*/}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
