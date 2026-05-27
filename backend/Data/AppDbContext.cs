@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Ingrediente> Ingredientes => Set<Ingrediente>();
     public DbSet<InscricaoIngrediente> InscricaoIngredientes => Set<InscricaoIngrediente>();
     public DbSet<Admin> Admins => Set<Admin>();
+    public DbSet<Configuracao> Configuracoes => Set<Configuracao>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
