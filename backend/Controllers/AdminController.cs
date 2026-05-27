@@ -44,7 +44,7 @@ public class AdminController : ControllerBase
                 nome = i.Candidato.Nome,
                 cpf = MaskCpf(i.Candidato.Cpf),
                 email = i.Candidato.Email,
-                telefone = i.Candidato.Telefone,   // ← adicionado
+                telefone = i.Candidato.Telefone,
                 unidade = i.Candidato.UnidadeEscolar,
                 diretor = i.Candidato.NomeDiretor,
                 matricula = i.Candidato.Matricula,
@@ -64,7 +64,7 @@ public class AdminController : ControllerBase
                 ii.Ingrediente.Nome,
                 ii.Ingrediente.Categoria,
                 ii.Ingrediente.IsInNatura,
-                ii.Quantidade                      // ← adicionado
+                ii.Quantidade
             }),
             status = i.Status.ToString(),
             motivoEliminacao = i.MotivoEliminacao,
@@ -76,7 +76,9 @@ public class AdminController : ControllerBase
                 alimentosInNatura = i.NotaAlimentosInNatura,
                 total = i.NotaTotal
             },
-            criadaEm = i.CriadaEm
+            criadaEm = i.CriadaEm,
+            dataSegundaFase = i.DataSegundaFase,
+            localSegundaFase = i.LocalSegundaFase
         }));
     }
 
@@ -112,7 +114,6 @@ public class AdminController : ControllerBase
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser pontuadas." });
 
-        // Validação por limite de cada critério conforme edital
         if (dto.Viabilidade < 0 || dto.Viabilidade > 5)
             return BadRequest(new { error = "Viabilidade: 0 a 5 pontos." });
         if (dto.Criatividade < 0 || dto.Criatividade > 15)
@@ -177,7 +178,6 @@ public class AdminController : ControllerBase
         if (inscricao.Status != StatusInscricao.Habilitada)
             return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
 
-        // Tratar data como horário de Brasília
         var dataUtc = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Unspecified);
         var dataLocalBrasilia = TimeZoneInfo.ConvertTimeToUtc(dataUtc, BrasiliaZone);
 
@@ -189,15 +189,21 @@ public class AdminController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        // Enviar e-mail com horário em Brasília
         var dataParaEmail = TimeZoneInfo.ConvertTimeFromUtc(dataLocalBrasilia, BrasiliaZone);
-        await _email.EnviarConvocacaoSegundaFaseAsync(
-            inscricao.Candidato.Email,
-            inscricao.Candidato.Nome,
-            inscricao.NomeReceita,
-            dataParaEmail,
-            dto.LocalSegundaFase
-        );
+        try
+        {
+            await _email.EnviarConvocacaoSegundaFaseAsync(
+                inscricao.Candidato.Email,
+                inscricao.Candidato.Nome,
+                inscricao.NomeReceita,
+                dataParaEmail,
+                dto.LocalSegundaFase
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"📧 [EMAIL FALHOU] {ex.Message}");
+        }
 
         return Ok(new { message = "Candidato convocado com sucesso!" });
     }
@@ -229,60 +235,61 @@ public class AdminController : ControllerBase
         return Ok(admins);
     }
 
+    [HttpPost("candidatos/{id:guid}/reset-senha")]
+    public async Task<IActionResult> ResetSenhaCandidato(Guid id, [FromBody] ResetSenhaCandidatoDto dto)
+    {
+        var candidato = await _db.Candidatos.FindAsync(id);
+        if (candidato == null) return NotFound(new { error = "Candidato não encontrado." });
+
+        if (!ValidarSenha(dto.NovaSenha, out var erro))
+            return BadRequest(new { error = erro });
+
+        candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+        candidato.PrimeiroAcesso = false;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Senha resetada com sucesso." });
+    }
+
+    [HttpGet("configuracoes")]
+    public async Task<IActionResult> GetConfiguracoes()
+    {
+        var config = await _db.Configuracoes.FirstOrDefaultAsync();
+        return Ok(new {
+            prazoEdicaoInscricao = config?.PrazoEdicaoInscricao,
+            inscricoesAbertas = config?.InscricoesAbertas ?? true
+        });
+    }
+
+    [HttpPatch("configuracoes")]
+    public async Task<IActionResult> SalvarConfiguracoes([FromBody] ConfiguracoesDto dto)
+    {
+        var config = await _db.Configuracoes.FirstOrDefaultAsync();
+        if (config == null)
+        {
+            config = new Configuracao();
+            _db.Configuracoes.Add(config);
+        }
+        config.PrazoEdicaoInscricao = dto.PrazoEdicaoInscricao;
+        config.InscricoesAbertas = dto.InscricoesAbertas;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Configurações salvas." });
+    }
+
+    private static bool ValidarSenha(string senha, out string erro)
+    {
+        erro = string.Empty;
+        if (senha.Length < 8) { erro = "A senha deve ter no mínimo 8 caracteres."; return false; }
+        if (!senha.Any(char.IsUpper)) { erro = "Deve conter ao menos uma letra maiúscula."; return false; }
+        if (!senha.Any(char.IsLower)) { erro = "Deve conter ao menos uma letra minúscula."; return false; }
+        if (!senha.Any(c => !char.IsLetterOrDigit(c))) { erro = "Deve conter ao menos um símbolo."; return false; }
+        return true;
+    }
+
     private static string MaskCpf(string cpf) =>
         cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
 }
 
-[HttpPost("candidatos/{id:guid}/reset-senha")]
-public async Task<IActionResult> ResetSenhaCandidato(Guid id, [FromBody] ResetSenhaCandidatoDto dto)
-{
-    var candidato = await _db.Candidatos.FindAsync(id);
-    if (candidato == null) return NotFound(new { error = "Candidato não encontrado." });
-
-    if (!ValidarSenha(dto.NovaSenha, out var erro))
-        return BadRequest(new { error = erro });
-
-    candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
-    candidato.PrimeiroAcesso = false;
-    await _db.SaveChangesAsync();
-    return Ok(new { message = "Senha resetada com sucesso." });
-}
-
-[HttpGet("configuracoes")]
-public async Task<IActionResult> GetConfiguracoes()
-{
-    var config = await _db.Configuracoes.FirstOrDefaultAsync();
-    return Ok(new {
-        prazoEdicaoInscricao = config?.PrazoEdicaoInscricao,
-        inscricoesAbertas = config?.InscricoesAbertas ?? true
-    });
-}
-
-[HttpPatch("configuracoes")]
-public async Task<IActionResult> SalvarConfiguracoes([FromBody] ConfiguracoesDto dto)
-{
-    var config = await _db.Configuracoes.FirstOrDefaultAsync();
-    if (config == null)
-    {
-        config = new Configuracao();
-        _db.Configuracoes.Add(config);
-    }
-    config.PrazoEdicaoInscricao = dto.PrazoEdicaoInscricao;
-    config.InscricoesAbertas = dto.InscricoesAbertas;
-    await _db.SaveChangesAsync();
-    return Ok(new { message = "Configurações salvas." });
-}
-
-private static bool ValidarSenha(string senha, out string erro)
-{
-    erro = string.Empty;
-    if (senha.Length < 8) { erro = "A senha deve ter no mínimo 8 caracteres."; return false; }
-    if (!senha.Any(char.IsUpper)) { erro = "Deve conter ao menos uma letra maiúscula."; return false; }
-    if (!senha.Any(char.IsLower)) { erro = "Deve conter ao menos uma letra minúscula."; return false; }
-    if (!senha.Any(c => !char.IsLetterOrDigit(c))) { erro = "Deve conter ao menos um símbolo."; return false; }
-    return true;
-}
-
+// ── DTOs ──────────────────────────────────────────────────────
 public record CriarAdminDto(string Nome, string Email, string Senha);
 public record ConvocarDto(DateTime DataSegundaFase, string LocalSegundaFase);
 public record EliminarDto(string Motivo);
