@@ -25,7 +25,7 @@ export default api;
 
 // Auth
 export const authApi = {
-  registrar: (data: { nome: string; cpf: string; email: string }) =>
+  registrar: (data: { nome: string; cpf: string; email: string; senha: string }) =>
     api.post('/api/auth/registro', data),
   login: (data: { cpf: string; senha: string }) =>
     api.post('/api/auth/login', data),
@@ -33,14 +33,14 @@ export const authApi = {
     api.post('/api/auth/trocar-senha', data),
   adminLogin: (data: { email: string; senha: string }) =>
     api.post('/api/auth/admin/login', data),
-  resetSenha: (cpf: string) =>        // ← adicione esta linha
-    api.post('/api/auth/reset-senha', { cpf }),
 };
 
 // Inscrições
 export const inscricaoApi = {
   enviar: (formData: FormData) =>
     api.post('/api/inscricoes', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  atualizar: (formData: FormData) =>
+    api.put('/api/inscricoes/minha', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   minha: () => api.get('/api/inscricoes/minha'),
   ingredientes: () => api.get('/api/inscricoes/ingredientes'),
 };
@@ -63,4 +63,10 @@ export const adminApi = {
     api.get('/api/admin/admins'),
   criarAdmin: (dados: object) =>
     api.post('/api/admin/admins', dados),
+  getConfiguracoes: () =>
+    api.get('/api/admin/configuracoes'),
+  salvarConfiguracoes: (dados: object) =>
+    api.patch('/api/admin/configuracoes', dados),
+  resetSenhaCandidato: (id: string, novaSenha: string) =>
+    api.post(`/api/admin/candidatos/${id}/reset-senha`, { novaSenha }),
 };
