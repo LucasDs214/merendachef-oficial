@@ -27,22 +27,28 @@ public class InscricoesController : ControllerBase
     public async Task<IActionResult> Inscrever([FromForm] InscricaoFormDto dto)
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
         var candidato = await _db.Candidatos.FindAsync(userId);
         if (candidato == null) return Unauthorized();
 
         if (await _db.Inscricoes.AnyAsync(i => i.CandidatoId == userId))
-            return Conflict(new { error = "Você já possui uma inscrição cadastrada." });
+            return Conflict(new { error = "Você já possui uma inscrição. Use o botão de editar." });
 
-        candidato.UnidadeEscolar = dto.UnidadeEscolar;
-        candidato.NomeDiretor = dto.NomeDiretor;
-        candidato.Matricula = dto.Matricula;
-        candidato.Cargo = dto.Cargo;
-        candidato.Telefone = dto.Telefone;
+        // Verifica prazo
+        var config = await _db.Configuracoes.FirstOrDefaultAsync();
+        if (config?.PrazoEdicaoInscricao.HasValue == true && DateTime.UtcNow > config.PrazoEdicaoInscricao.Value)
+            return BadRequest(new { error = "O prazo para inscrições encerrou." });
+
+        // Atualiza dados do candidato se fornecidos
+        if (!string.IsNullOrEmpty(dto.UnidadeEscolar)) candidato.UnidadeEscolar = dto.UnidadeEscolar;
+        if (!string.IsNullOrEmpty(dto.NomeDiretor)) candidato.NomeDiretor = dto.NomeDiretor;
+        if (!string.IsNullOrEmpty(dto.Matricula)) candidato.Matricula = dto.Matricula;
+        if (!string.IsNullOrEmpty(dto.Cargo)) candidato.Cargo = dto.Cargo;
+        if (!string.IsNullOrEmpty(dto.Telefone)) candidato.Telefone = dto.Telefone;
         candidato.AceitouTermosUso = dto.AceitouTermosUso;
 
-        var comprovanteNome = await SalvarArquivo(dto.ComprovanteVinculo, userId);
-        if (comprovanteNome == null) return BadRequest(new { error = "Comprovante de vínculo é obrigatório." });
+        string? comprovanteNome = dto.ComprovanteVinculo != null
+            ? await SalvarArquivo(dto.ComprovanteVinculo, userId)
+            : null;
 
         string? fotoNome = dto.FotoReceita != null
             ? await SalvarArquivo(dto.FotoReceita, userId)
@@ -51,10 +57,10 @@ public class InscricoesController : ControllerBase
         var inscricao = new Inscricao
         {
             CandidatoId = userId,
-            NomeReceita = dto.NomeReceita,
-            Descricao = dto.Descricao,
-            ModoPreparo = dto.ModoPreparo,
-            ComprovanteVinculo = comprovanteNome!,
+            NomeReceita = dto.NomeReceita ?? string.Empty,
+            Descricao = dto.Descricao ?? string.Empty,
+            ModoPreparo = dto.ModoPreparo ?? string.Empty,
+            ComprovanteVinculo = comprovanteNome ?? string.Empty,
             FotoReceita = fotoNome,
             AceitouLgpd = dto.AceitouLgpd,
             AutorizouUsoImagem = dto.AutorizouUsoImagem,
@@ -69,7 +75,6 @@ public class InscricoesController : ControllerBase
         _db.Inscricoes.Add(inscricao);
         await _db.SaveChangesAsync();
 
-        // Gerar hash único de confirmação
         var hash = Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes($"{candidato.Cpf}{inscricao.Id}{DateTime.UtcNow}")
@@ -80,15 +85,78 @@ public class InscricoesController : ControllerBase
         inscricao.DataConfirmacao = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        await _email.EnviarComprovanteInscricaoAsync(
-            candidato.Email,
-            candidato.Nome,
-            dto.NomeReceita,
-            hash,
-            inscricao.CriadaEm
-        );
+        try
+        {
+            await _email.EnviarComprovanteInscricaoAsync(
+                candidato.Email, candidato.Nome, inscricao.NomeReceita, hash, inscricao.CriadaEm);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"📧 [EMAIL FALHOU] {ex.Message}");
+        }
 
-        return Ok(new { id = inscricao.Id, hash, message = "Inscrição realizada com sucesso!" });
+        return Ok(new { id = inscricao.Id, hash, message = "Inscrição salva com sucesso!" });
+    }
+
+    [HttpPut("minha")]
+    [Authorize(Roles = "Candidato")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> AtualizarInscricao([FromForm] InscricaoFormDto dto)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        // Verifica prazo
+        var config = await _db.Configuracoes.FirstOrDefaultAsync();
+        if (config?.PrazoEdicaoInscricao.HasValue == true && DateTime.UtcNow > config.PrazoEdicaoInscricao.Value)
+            return BadRequest(new { error = "O prazo para edição de inscrições encerrou." });
+
+        var inscricao = await _db.Inscricoes
+            .Include(i => i.Ingredientes)
+            .FirstOrDefaultAsync(i => i.CandidatoId == userId);
+
+        if (inscricao == null) return NotFound(new { error = "Inscrição não encontrada." });
+
+        var candidato = await _db.Candidatos.FindAsync(userId);
+        if (candidato == null) return Unauthorized();
+
+        // Atualiza dados do candidato
+        if (!string.IsNullOrEmpty(dto.UnidadeEscolar)) candidato.UnidadeEscolar = dto.UnidadeEscolar;
+        if (!string.IsNullOrEmpty(dto.NomeDiretor)) candidato.NomeDiretor = dto.NomeDiretor;
+        if (!string.IsNullOrEmpty(dto.Matricula)) candidato.Matricula = dto.Matricula;
+        if (!string.IsNullOrEmpty(dto.Cargo)) candidato.Cargo = dto.Cargo;
+        if (!string.IsNullOrEmpty(dto.Telefone)) candidato.Telefone = dto.Telefone;
+        candidato.AceitouTermosUso = dto.AceitouTermosUso;
+
+        // Atualiza receita
+        if (!string.IsNullOrEmpty(dto.NomeReceita)) inscricao.NomeReceita = dto.NomeReceita;
+        if (!string.IsNullOrEmpty(dto.Descricao)) inscricao.Descricao = dto.Descricao;
+        if (!string.IsNullOrEmpty(dto.ModoPreparo)) inscricao.ModoPreparo = dto.ModoPreparo;
+        inscricao.AceitouLgpd = dto.AceitouLgpd;
+        inscricao.AutorizouUsoImagem = dto.AutorizouUsoImagem;
+
+        // Atualiza arquivos se enviados
+        if (dto.ComprovanteVinculo != null)
+            inscricao.ComprovanteVinculo = await SalvarArquivo(dto.ComprovanteVinculo, userId) ?? inscricao.ComprovanteVinculo;
+
+        if (dto.FotoReceita != null)
+            inscricao.FotoReceita = await SalvarArquivo(dto.FotoReceita, userId);
+
+        // Atualiza ingredientes
+        if (dto.Ingredientes.Any())
+        {
+            _db.RemoveRange(inscricao.Ingredientes);
+            inscricao.Ingredientes = dto.Ingredientes.Select(i => new InscricaoIngrediente
+            {
+                InscricaoId = inscricao.Id,
+                IngredienteId = i.Id,
+                Quantidade = i.Quantidade
+            }).ToList();
+        }
+
+        inscricao.AtualizadaEm = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Inscrição atualizada com sucesso!" });
     }
 
     [HttpGet("minha")]
@@ -100,10 +168,14 @@ public class InscricoesController : ControllerBase
             .Include(i => i.Candidato)
             .Include(i => i.Ingredientes).ThenInclude(ii => ii.Ingrediente)
             .FirstOrDefaultAsync(i => i.CandidatoId == userId);
-    
+
         if (inscricao == null) return NotFound(new { error = "Nenhuma inscrição encontrada." });
-    
+
         var c = inscricao.Candidato;
+        var config = await _db.Configuracoes.FirstOrDefaultAsync();
+        var prazoExpirado = config?.PrazoEdicaoInscricao.HasValue == true
+            && DateTime.UtcNow > config.PrazoEdicaoInscricao.Value;
+
         return Ok(new {
             id = inscricao.Id,
             candidato = new {
@@ -134,11 +206,12 @@ public class InscricoesController : ControllerBase
                 ii.Ingrediente.IsInNatura,
                 ii.Quantidade
             }),
-            criadaEm = inscricao.CriadaEm
+            criadaEm = inscricao.CriadaEm,
+            podeEditar = !prazoExpirado,
+            prazoEdicao = config?.PrazoEdicaoInscricao
         });
     }
 
-    // Endpoint público — lista ingredientes para consulta antes do login
     [HttpGet("ingredientes")]
     public async Task<IActionResult> ListarIngredientes()
     {
@@ -187,30 +260,19 @@ public class InscricoesController : ControllerBase
     }
 }
 
-// ── DTOs ──────────────────────────────────────────────────────
-
 public class InscricaoFormDto
 {
-    // Passo 1
-    public string UnidadeEscolar { get; set; } = string.Empty;
-    public string NomeDiretor { get; set; } = string.Empty;
-    public string Matricula { get; set; } = string.Empty;
-    public string Cargo { get; set; } = string.Empty;
-    public string Telefone { get; set; } = string.Empty;
-
-    // Passo 2
+    public string? UnidadeEscolar { get; set; }
+    public string? NomeDiretor { get; set; }
+    public string? Matricula { get; set; }
+    public string? Cargo { get; set; }
+    public string? Telefone { get; set; }
     public IFormFile? ComprovanteVinculo { get; set; }
-
-    // Passo 3
-    public string NomeReceita { get; set; } = string.Empty;
-    public string Descricao { get; set; } = string.Empty;
-    public string ModoPreparo { get; set; } = string.Empty;
+    public string? NomeReceita { get; set; }
+    public string? Descricao { get; set; }
+    public string? ModoPreparo { get; set; }
     public IFormFile? FotoReceita { get; set; }
-
-    // Passo 4 — ingredientes com quantidade
     public List<IngredienteItemDto> Ingredientes { get; set; } = new();
-
-    // Passo 5
     public bool AceitouLgpd { get; set; }
     public bool AutorizouUsoImagem { get; set; }
     public bool AceitouTermosUso { get; set; }
