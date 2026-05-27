@@ -88,3 +88,10 @@ public class Admin
     public string SenhaHash { get; set; } = string.Empty;
     public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
 }
+
+public class Configuracao
+{
+    public int Id { get; set; }
+    public DateTime? PrazoEdicaoInscricao { get; set; }
+    public bool InscricoesAbertas { get; set; } = true;
+}
