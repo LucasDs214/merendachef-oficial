@@ -16,11 +16,11 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
-    private readonly IEmailService _email;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext db, IConfiguration config, IEmailService email)
+    public AuthController(AppDbContext db, IConfiguration config, ILogger<AuthController> logger)
     {
-        _db = db; _config = config; _email = email;
+        _db = db; _config = config; _logger = logger;
     }
 
     [HttpPost("registro")]
@@ -29,28 +29,29 @@ public class AuthController : ControllerBase
         var cpf = dto.Cpf.Replace(".", "").Replace("-", "");
         if (!ValidarCpf(cpf)) return BadRequest(new { error = "CPF inválido." });
 
+        if (!ValidarSenha(dto.Senha, out var senhaErro))
+            return BadRequest(new { error = senhaErro });
+
         if (await _db.Candidatos.AnyAsync(c => c.Cpf == cpf))
             return Conflict(new { error = "CPF já cadastrado." });
 
         if (await _db.Candidatos.AnyAsync(c => c.Email == dto.Email))
             return Conflict(new { error = "E-mail já cadastrado." });
 
-        var senha = GerarSenhaTemporaria();
         var candidato = new Candidato
         {
             Nome = dto.Nome,
             Cpf = cpf,
             Email = dto.Email,
-            SenhaHash = BCrypt.Net.BCrypt.HashPassword(senha),
-            PrimeiroAcesso = true
+            SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha),
+            PrimeiroAcesso = false
         };
 
         _db.Candidatos.Add(candidato);
         await _db.SaveChangesAsync();
 
-        await _email.EnviarSenhaTemporariaAsync(dto.Email, dto.Nome, senha);
-
-        return Ok(new { message = "Cadastro realizado! Verifique seu e-mail para a senha temporária." });
+        _logger.LogInformation("✅ Candidato cadastrado: {Email}", dto.Email);
+        return Ok(new { message = "Cadastro realizado com sucesso!" });
     }
 
     [HttpPost("login")]
@@ -66,7 +67,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             token,
-            primeiroAcesso = candidato.PrimeiroAcesso,
+            primeiroAcesso = false,
             nome = candidato.Nome,
             id = candidato.Id
         });
@@ -83,6 +84,9 @@ public class AuthController : ControllerBase
         if (!BCrypt.Net.BCrypt.Verify(dto.SenhaAtual, candidato.SenhaHash))
             return BadRequest(new { error = "Senha atual incorreta." });
 
+        if (!ValidarSenha(dto.NovaSenha, out var senhaErro))
+            return BadRequest(new { error = senhaErro });
+
         candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
         candidato.PrimeiroAcesso = false;
         await _db.SaveChangesAsync();
@@ -98,24 +102,6 @@ public class AuthController : ControllerBase
 
         var token = GerarToken(admin.Id.ToString(), admin.Email, "Admin");
         return Ok(new { token, nome = admin.Nome });
-    }
-
-    [HttpPost("reset-senha")]
-    public async Task<IActionResult> ResetSenha([FromBody] ResetSenhaDto dto)
-    {
-        var cpf = dto.Cpf.Replace(".", "").Replace("-", "");
-        var candidato = await _db.Candidatos.FirstOrDefaultAsync(c => c.Cpf == cpf);
-        if (candidato == null)
-            return NotFound(new { error = "CPF não encontrado." });
-    
-        var novaSenha = GerarSenhaTemporaria();
-        candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(novaSenha);
-        candidato.PrimeiroAcesso = true;
-        await _db.SaveChangesAsync();
-    
-        await _email.EnviarSenhaTemporariaAsync(candidato.Email, candidato.Nome, novaSenha);
-    
-        return Ok(new { message = "Senha resetada! Verifique seu e-mail." });
     }
 
     private string GerarToken(string id, string email, string role)
@@ -138,11 +124,14 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string GerarSenhaTemporaria()
+    private static bool ValidarSenha(string senha, out string erro)
     {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!";
-        var rng = new Random();
-        return new string(Enumerable.Range(0, 10).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+        erro = string.Empty;
+        if (senha.Length < 8) { erro = "A senha deve ter no mínimo 8 caracteres."; return false; }
+        if (!senha.Any(char.IsUpper)) { erro = "A senha deve conter ao menos uma letra maiúscula."; return false; }
+        if (!senha.Any(char.IsLower)) { erro = "A senha deve conter ao menos uma letra minúscula."; return false; }
+        if (!senha.Any(c => !char.IsLetterOrDigit(c))) { erro = "A senha deve conter ao menos um símbolo (@, #, !, etc)."; return false; }
+        return true;
     }
 
     private static bool ValidarCpf(string cpf)
@@ -159,8 +148,7 @@ public class AuthController : ControllerBase
     }
 }
 
-public record ResetSenhaDto(string Cpf);
-public record RegistroDto(string Nome, string Cpf, string Email);
+public record RegistroDto(string Nome, string Cpf, string Email, string Senha);
 public record LoginDto(string Cpf, string Senha);
 public record TrocarSenhaDto(string SenhaAtual, string NovaSenha);
 public record AdminLoginDto(string Email, string Senha);
