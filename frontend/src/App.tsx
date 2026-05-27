@@ -61,7 +61,6 @@ function PasswordInput({ value, onChange, placeholder, className }: {
         onChange={onChange}
         placeholder={placeholder}
         className={className}
-        required
       />
       <EyeIcon show={show} toggle={() => setShow(s => !s)} />
     </div>
@@ -87,17 +86,22 @@ function ErroInline({ message }: { message: string }) {
   );
 }
 
-// ── Redirect Externo ───────────────────────────────────────────
-function RedirectFaetec() {
-  useEffect(() => {
-    window.location.href = 'https://www.faetec.rj.gov.br/';
-  }, []);
+// ── Hint de senha ──────────────────────────────────────────────
+function SenhaHint({ senha }: { senha: string }) {
+  const regras = [
+    { ok: senha.length >= 8, texto: 'Mínimo 8 caracteres' },
+    { ok: /[A-Z]/.test(senha), texto: 'Uma letra maiúscula' },
+    { ok: /[a-z]/.test(senha), texto: 'Uma letra minúscula' },
+    { ok: /[^a-zA-Z0-9]/.test(senha), texto: 'Um símbolo (@, #, !, etc)' },
+  ];
+  if (!senha) return null;
   return (
-    <div className="min-h-screen bg-orange-50 flex items-center justify-center">
-      <div className="text-center">
-        <img src="/favicon.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
-        <p className="text-gray-500">Redirecionando para o site da FAETEC...</p>
-      </div>
+    <div className="mt-1 space-y-1">
+      {regras.map(r => (
+        <p key={r.texto} className={`text-xs flex items-center gap-1 ${r.ok ? 'text-green-600' : 'text-gray-400'}`}>
+          <span>{r.ok ? '✅' : '○'}</span> {r.texto}
+        </p>
+      ))}
     </div>
   );
 }
@@ -111,11 +115,10 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
-  const [mode, setMode] = useState<'login' | 'registro' | 'reset'>('login');
-  const [regData, setRegData] = useState({ nome: '', cpf: '', email: '' });
+  // Abre no cadastro por padrão
+  const [mode, setMode] = useState<'login' | 'registro'>('registro');
+  const [regData, setRegData] = useState({ nome: '', cpf: '', email: '', senha: '', confirmarSenha: '' });
   const [regError, setRegError] = useState('');
-  const [resetCpf, setResetCpf] = useState('');
-  const [resetError, setResetError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,16 +126,12 @@ function LoginPage() {
     setError('');
     try {
       const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
-      setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
-      if (res.data.primeiroAcesso) {
-        navigate('/trocar-senha');
-      } else {
-        try {
-          await inscricaoApi.minha();
-          navigate('/minha-inscricao');
-        } catch {
-          navigate('/inscricao');
-        }
+      setAuth(res.data.token, res.data.nome, 'candidato', false);
+      try {
+        await inscricaoApi.minha();
+        navigate('/minha-inscricao');
+      } catch {
+        navigate('/inscricao');
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -140,31 +139,33 @@ function LoginPage() {
     } finally { setLoading(false); }
   };
 
+  const senhaValida = (s: string) =>
+    s.length >= 8 && /[A-Z]/.test(s) && /[a-z]/.test(s) && /[^a-zA-Z0-9]/.test(s);
+
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setRegError('');
+
+    if (!senhaValida(regData.senha)) {
+      setRegError('A senha não atende aos requisitos mínimos.'); return;
+    }
+    if (regData.senha !== regData.confirmarSenha) {
+      setRegError('As senhas não coincidem.'); return;
+    }
+
+    setLoading(true);
     try {
-      await authApi.registrar({ ...regData, cpf: regData.cpf.replace(/\D/g, '') });
-      setToast({ message: 'Cadastro realizado! Verifique seu e-mail para a senha temporária.', type: 'success' });
+      await authApi.registrar({
+        nome: regData.nome,
+        cpf: regData.cpf.replace(/\D/g, ''),
+        email: regData.email,
+        senha: regData.senha,
+      });
+      setToast({ message: 'Cadastro realizado! Faça login para continuar.', type: 'success' });
       setMode('login');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setRegError(err.response?.data?.error || 'Erro no cadastro.');
-    } finally { setLoading(false); }
-  };
-
-  const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setResetError('');
-    try {
-      await authApi.resetSenha(resetCpf.replace(/\D/g, ''));
-      setToast({ message: 'Senha resetada! Verifique seu e-mail para a nova senha temporária.', type: 'success' });
-      setMode('login');
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setResetError(err.response?.data?.error || 'CPF não encontrado.');
     } finally { setLoading(false); }
   };
 
@@ -173,25 +174,21 @@ function LoginPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl shadow-lg mb-4">
-            <img src="/logo3D.png" alt="MerendaChef" className="w-20 h-20 rounded-3xl" />
-          </div>
+          <img src="/favicon.png" alt="MerendaChef" className="w-40 h-40 rounded-3xl shadow-lg mx-auto mb-4" />
           <h1 className="text-3xl font-black text-gray-900">MerendaChef</h1>
           <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2026</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-orange-100">
-          {mode !== 'reset' && (
-            <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
-              {(['login', 'registro'] as const).map(m => (
-                <button key={m} onClick={() => { setMode(m); setError(''); setRegError(''); setToast(null); }}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
-                    ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {m === 'login' ? 'Entrar' : 'Cadastrar'}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+            {(['registro', 'login'] as const).map(m => (
+              <button key={m} onClick={() => { setMode(m); setError(''); setRegError(''); }}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
+                  ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                {m === 'login' ? 'Entrar' : 'Cadastrar'}
+              </button>
+            ))}
+          </div>
 
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
@@ -212,10 +209,6 @@ function LoginPage() {
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
                 {loading ? 'Entrando...' : 'Entrar →'}
-              </button>
-              <button type="button" onClick={() => { setMode('reset'); setError(''); }}
-                className="w-full text-sm text-orange-500 hover:text-orange-700 text-center mt-1">
-                Esqueci minha senha
               </button>
             </form>
           )}
@@ -245,36 +238,29 @@ function LoginPage() {
                   onChange={e => { setRegData(d => ({ ...d, email: e.target.value })); setRegError(''); }}
                   className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Senha</label>
+                <PasswordInput value={regData.senha}
+                  onChange={e => { setRegData(d => ({ ...d, senha: e.target.value })); setRegError(''); }}
+                  placeholder="Crie uma senha forte"
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10" />
+                <SenhaHint senha={regData.senha} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Confirmar Senha</label>
+                <PasswordInput value={regData.confirmarSenha}
+                  onChange={e => { setRegData(d => ({ ...d, confirmarSenha: e.target.value })); setRegError(''); }}
+                  placeholder="Repita a senha"
+                  className={`w-full border rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10
+                    ${regData.confirmarSenha && regData.senha !== regData.confirmarSenha
+                      ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                {regData.confirmarSenha && regData.senha !== regData.confirmarSenha && (
+                  <p className="text-xs text-red-500 mt-1">As senhas não coincidem</p>
+                )}
+              </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
-                {loading ? 'Cadastrando...' : 'Criar Conta'}
-              </button>
-            </form>
-          )}
-
-          {mode === 'reset' && (
-            <form onSubmit={handleReset} className="space-y-4">
-              <div className="text-center mb-2">
-                <div className="text-3xl mb-2">🔑</div>
-                <h3 className="font-bold text-gray-800">Resetar Senha</h3>
-                <p className="text-sm text-gray-500">Digite seu CPF e enviaremos uma nova senha para seu e-mail.</p>
-              </div>
-              <ErroInline message={resetError} />
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
-                <input type="text" placeholder="000.000.000-00"
-                  value={resetCpf}
-                  onChange={e => { setResetCpf(maskCpf(e.target.value)); setResetError(''); }}
-                  maxLength={14}
-                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
-                {loading ? 'Enviando...' : 'Enviar Nova Senha'}
-              </button>
-              <button type="button" onClick={() => { setMode('login'); setResetError(''); }}
-                className="w-full text-sm text-gray-500 hover:text-gray-700 text-center">
-                ← Voltar ao login
+                {loading ? 'Cadastrando...' : 'Criar Conta →'}
               </button>
             </form>
           )}
@@ -296,60 +282,6 @@ function LoginPage() {
             <Link to="/admin/login" className="text-xs text-gray-400 hover:text-gray-600">Acesso Administrativo</Link>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Trocar Senha Page ──────────────────────────────────────────
-function TrocarSenhaPage() {
-  const { nome } = useAuthStore();
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.novaSenha !== form.confirmar) { setError('As senhas não coincidem.'); return; }
-    if (form.novaSenha.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return; }
-    setLoading(true);
-    setError('');
-    try {
-      await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
-      navigate('/inscricao');
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'Erro ao trocar senha.');
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border border-orange-100">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">🔐 Trocar Senha</h2>
-        <p className="text-gray-500 text-sm mb-6">Olá, {nome}! Por segurança, crie uma senha pessoal.</p>
-        <ErroInline message={error} />
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {[
-            { key: 'senhaAtual', label: 'Senha Temporária' },
-            { key: 'novaSenha', label: 'Nova Senha (mín. 8 caracteres)' },
-            { key: 'confirmar', label: 'Confirmar Nova Senha' },
-          ].map(({ key, label }) => (
-            <div key={key}>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-              <PasswordInput
-                value={form[key as keyof typeof form]}
-                onChange={e => { setForm(f => ({ ...f, [key]: e.target.value })); setError(''); }}
-                className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10"
-              />
-            </div>
-          ))}
-          <button type="submit" disabled={loading}
-            className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
-            {loading ? 'Salvando...' : 'Salvar e Continuar →'}
-          </button>
-        </form>
       </div>
     </div>
   );
@@ -528,12 +460,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/*<Route path="/" element={<RedirectFaetec />} />*/}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/trocar-senha" element={<PrivateRoute role="candidato"><TrocarSenhaPage /></PrivateRoute>} />
         <Route path="/inscricao" element={<PrivateRoute role="candidato"><InscricaoPage /></PrivateRoute>} />
         <Route path="/minha-inscricao" element={<PrivateRoute role="candidato"><MinhaInscricaoPage /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute role="admin"><AdminPanel /></PrivateRoute>} />
