@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { inscricaoApi } from '../../utils/api';
 import { maskTelefone } from '../../utils/masks';
 import type { WizardData, Ingrediente } from '../../types';
 
-const STEPS = ['Dados Funcionais', 'Documentação', 'Receita', 'Ingredientes', 'Termos'];
+const STEPS = ['Dados Funcionais', 'Documentação', 'Ingredientes', 'Receita', 'Termos'];
 
 const UNIDADES_FAETEC = [
   'ETE João Luiz do Nascimento',
@@ -48,20 +48,32 @@ Para dúvidas: merendachef@faetec.rj.gov.br`;
 
 interface Props {
   ingredientes: Ingrediente[];
+  modoEdicao?: boolean;
+  dadosIniciais?: Partial<WizardData>;
+  onSucesso?: () => void;
 }
 
-export function InscricaoWizard({ ingredientes }: Props) {
+export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciais, onSucesso }: Props) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [modalTermos, setModalTermos] = useState(false);
   const [data, setData] = useState<WizardData>({
-    unidadeEscolar: '', nomeDiretor: '', matricula: '', cargo: '', telefone: '',
+    unidadeEscolar: dadosIniciais?.unidadeEscolar || '',
+    nomeDiretor: dadosIniciais?.nomeDiretor || '',
+    matricula: dadosIniciais?.matricula || '',
+    cargo: dadosIniciais?.cargo || '',
+    telefone: dadosIniciais?.telefone || '',
     comprovanteVinculo: null,
-    nomeReceita: '', descricao: '', modoPreparo: '', fotoReceita: null,
-    ingredientes: [],
-    aceitouLgpd: false, autorizouUsoImagem: false, aceitouTermosUso: false,
+    nomeReceita: dadosIniciais?.nomeReceita || '',
+    descricao: dadosIniciais?.descricao || '',
+    modoPreparo: dadosIniciais?.modoPreparo || '',
+    fotoReceita: null,
+    ingredientes: dadosIniciais?.ingredientes || [],
+    aceitouLgpd: dadosIniciais?.aceitouLgpd || false,
+    autorizouUsoImagem: dadosIniciais?.autorizouUsoImagem || false,
+    aceitouTermosUso: dadosIniciais?.aceitouTermosUso || false,
   });
 
   const update = (field: keyof WizardData, value: unknown) =>
@@ -70,59 +82,42 @@ export function InscricaoWizard({ ingredientes }: Props) {
   const nextStep = () => { setError(''); setStep(s => s + 1); };
   const prevStep = () => { setError(''); setStep(s => s - 1); };
 
-  const validateStep = (): boolean => {
-    if (step === 0) {
-      if (!data.unidadeEscolar || !data.nomeDiretor || !data.matricula || !data.cargo || !data.telefone) {
-        setError('Preencha todos os campos obrigatórios.'); return false;
-      }
-    }
-    if (step === 1 && !data.comprovanteVinculo) {
-      setError('O comprovante de vínculo funcional é obrigatório.'); return false;
-    }
-    if (step === 2) {
-      if (!data.nomeReceita || !data.descricao || !data.modoPreparo) {
-        setError('Preencha o nome, descrição e modo de preparo da receita.'); return false;
-      }
-    }
-    if (step === 3 && data.ingredientes.length < 3) {
-      setError('Selecione ao menos 3 ingredientes.'); return false;
-    }
-    if (step === 4 && (!data.aceitouLgpd || !data.autorizouUsoImagem || !data.aceitouTermosUso)) {
-      setError('Você deve aceitar todos os termos para prosseguir.'); return false;
-    }
-    return true;
-  };
-
   const handleSubmit = async () => {
-    if (!validateStep()) return;
     setLoading(true); setError('');
     try {
       const formData = new FormData();
-      formData.append('unidadeEscolar', data.unidadeEscolar);
-      formData.append('nomeDiretor', data.nomeDiretor);
-      formData.append('matricula', data.matricula);
-      formData.append('cargo', data.cargo);
-      formData.append('telefone', data.telefone);
-      formData.append('nomeReceita', data.nomeReceita);
-      formData.append('descricao', data.descricao);
-      formData.append('modoPreparo', data.modoPreparo);
+      if (data.unidadeEscolar) formData.append('unidadeEscolar', data.unidadeEscolar);
+      if (data.nomeDiretor) formData.append('nomeDiretor', data.nomeDiretor);
+      if (data.matricula) formData.append('matricula', data.matricula);
+      if (data.cargo) formData.append('cargo', data.cargo);
+      if (data.telefone) formData.append('telefone', data.telefone);
+      if (data.nomeReceita) formData.append('nomeReceita', data.nomeReceita);
+      if (data.descricao) formData.append('descricao', data.descricao);
+      if (data.modoPreparo) formData.append('modoPreparo', data.modoPreparo);
       formData.append('aceitouLgpd', String(data.aceitouLgpd));
       formData.append('autorizouUsoImagem', String(data.autorizouUsoImagem));
       formData.append('aceitouTermosUso', String(data.aceitouTermosUso));
       if (data.comprovanteVinculo) formData.append('comprovanteVinculo', data.comprovanteVinculo);
       if (data.fotoReceita) formData.append('fotoReceita', data.fotoReceita);
-
-      // Ingredientes com quantidade
       data.ingredientes.forEach((ing, index) => {
         formData.append(`Ingredientes[${index}].Id`, String(ing.id));
         formData.append(`Ingredientes[${index}].Quantidade`, ing.quantidade);
       });
 
-      await inscricaoApi.enviar(formData);
-      navigate('/minha-inscricao');
+      if (modoEdicao) {
+        await inscricaoApi.atualizar(formData);
+      } else {
+        await inscricaoApi.enviar(formData);
+      }
+
+      if (onSucesso) {
+        onSucesso();
+      } else {
+        navigate('/minha-inscricao');
+      }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'Erro ao enviar inscrição.');
+      setError(err.response?.data?.error || 'Erro ao salvar inscrição.');
     } finally { setLoading(false); }
   };
 
@@ -168,8 +163,7 @@ export function InscricaoWizard({ ingredientes }: Props) {
       <div className="bg-white rounded-2xl shadow-lg p-6 border border-orange-100">
         {step === 0 && <StepDados data={data} update={update} />}
         {step === 1 && <StepDocumentacao data={data} update={update} />}
-        {step === 2 && <StepReceita data={data} update={update} />}
-        {step === 3 && (
+        {step === 2 && (
           <StepIngredientes
             ingredientes={ingredientes}
             categorias={categorias}
@@ -178,6 +172,7 @@ export function InscricaoWizard({ ingredientes }: Props) {
             updateQuantidade={updateQuantidade}
           />
         )}
+        {step === 3 && <StepReceita data={data} update={update} ingredientes={ingredientes} />}
         {step === 4 && (
           <StepTermos
             data={data}
@@ -200,14 +195,14 @@ export function InscricaoWizard({ ingredientes }: Props) {
             </button>
           )}
           {step < STEPS.length - 1 ? (
-            <button onClick={() => { if (validateStep()) nextStep(); }}
+            <button onClick={nextStep}
               className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition shadow">
               Próximo →
             </button>
           ) : (
             <button onClick={handleSubmit} disabled={loading}
               className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition shadow disabled:opacity-50">
-              {loading ? 'Enviando...' : '🏆 Enviar Inscrição'}
+              {loading ? 'Salvando...' : modoEdicao ? '💾 Salvar Alterações' : '🏆 Enviar Inscrição'}
             </button>
           )}
         </div>
@@ -215,10 +210,8 @@ export function InscricaoWizard({ ingredientes }: Props) {
 
       {/* Modal Termos */}
       {modalTermos && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setModalTermos(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-800">📜 Termos de Uso e Política de Privacidade</h2>
               <button onClick={() => setModalTermos(false)} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
@@ -239,16 +232,13 @@ export function InscricaoWizard({ ingredientes }: Props) {
   );
 }
 
-// ── Passo 1 ────────────────────────────────────────────────────
-function StepDados({ data, update }: {
-  data: WizardData;
-  update: (k: keyof WizardData, v: unknown) => void;
-}) {
+function StepDados({ data, update }: { data: WizardData; update: (k: keyof WizardData, v: unknown) => void }) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-gray-800">📋 Dados Funcionais</h2>
+      <p className="text-sm text-gray-500">Todos os campos são opcionais e podem ser preenchidos depois.</p>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Unidade Escolar (FAETEC) *</label>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Unidade Escolar (FAETEC)</label>
         <select value={data.unidadeEscolar} onChange={e => update('unidadeEscolar', e.target.value)}
           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none">
           <option value="">Selecione...</option>
@@ -256,33 +246,25 @@ function StepDados({ data, update }: {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Nome do(a) Diretor(a) *</label>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Nome do(a) Diretor(a)</label>
         <input type="text" placeholder="Nome completo do(a) diretor(a)"
           value={data.nomeDiretor} onChange={e => update('nomeDiretor', e.target.value)}
           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1">
-          Matrícula do Funcionário *
-          <span className="group relative cursor-help inline-block ml-1">
-            <span className="text-gray-400 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center">?</span>
-            <span className="hidden group-hover:block absolute left-6 top-0 bg-gray-800 text-white text-xs rounded-lg p-2 w-52 z-10">
-              Número de matrícula funcional fornecido pela FAETEC no momento da contratação.
-            </span>
-          </span>
-        </label>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Matrícula do Funcionário</label>
         <input type="text" placeholder="Ex: 12345678"
           value={data.matricula} onChange={e => update('matricula', e.target.value)}
           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Cargo *</label>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Cargo</label>
         <input type="text" placeholder="Ex: Merendeira, Auxiliar de Serviços..."
           value={data.cargo} onChange={e => update('cargo', e.target.value)}
           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Telefone / WhatsApp *</label>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
         <input type="text" placeholder="(21) 99999-9999"
           value={data.telefone}
           onChange={e => update('telefone', maskTelefone(e.target.value))}
@@ -293,19 +275,14 @@ function StepDados({ data, update }: {
   );
 }
 
-// ── Passo 2 ────────────────────────────────────────────────────
 function FileDropzone({ label, accept, value, onChange, hint }: {
-  label: string;
-  accept: string;
-  value: File | null;
-  onChange: (f: File | null) => void;
-  hint?: string;
+  label: string; accept: string; value: File | null;
+  onChange: (f: File | null) => void; hint?: string;
 }) {
   return (
     <div>
       <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <label className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition block
-        border-gray-300 hover:border-orange-300 hover:bg-orange-50/50">
+      <label className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition block border-gray-300 hover:border-orange-300 hover:bg-orange-50/50">
         <input type="file" accept={accept} className="hidden"
           onChange={e => onChange(e.target.files?.[0] || null)} />
         {value ? (
@@ -322,16 +299,13 @@ function FileDropzone({ label, accept, value, onChange, hint }: {
   );
 }
 
-function StepDocumentacao({ data, update }: {
-  data: WizardData;
-  update: (k: keyof WizardData, v: unknown) => void;
-}) {
+function StepDocumentacao({ data, update }: { data: WizardData; update: (k: keyof WizardData, v: unknown) => void }) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-gray-800">📄 Documentação</h2>
-      <p className="text-sm text-gray-600">Envie o documento que comprova seu vínculo funcional com a unidade FAETEC.</p>
+      <p className="text-sm text-gray-600">Envie o documento que comprova seu vínculo funcional com a unidade FAETEC. Opcional — pode ser enviado depois.</p>
       <FileDropzone
-        label="Comprovante de Vínculo Funcional *"
+        label="Comprovante de Vínculo Funcional"
         accept=".pdf,.jpg,.jpeg,.png"
         value={data.comprovanteVinculo}
         onChange={f => update('comprovanteVinculo', f)}
@@ -341,51 +315,8 @@ function StepDocumentacao({ data, update }: {
   );
 }
 
-// ── Passo 3 ────────────────────────────────────────────────────
-function StepReceita({ data, update }: {
-  data: WizardData;
-  update: (k: keyof WizardData, v: unknown) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-800">🍽️ Sua Receita</h2>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Nome da Receita *</label>
-        <input type="text" placeholder="Ex: Feijoada Carioca da Vovó"
-          value={data.nomeReceita} onChange={e => update('nomeReceita', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição do Prato *</label>
-        <p className="text-xs text-gray-400 mb-1">
-          Descreva o prato, sua origem cultural e, se quiser, inclua curiosidades sobre a receita ou tradições familiares.
-        </p>
-        <textarea rows={4} placeholder="Descreva seu prato, origem cultural, curiosidades..."
-          value={data.descricao} onChange={e => update('descricao', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none resize-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Modo de Preparo *</label>
-        <textarea rows={6} placeholder="Descreva passo a passo como preparar a receita, incluindo técnicas, temperaturas e tempos de cozimento..."
-          value={data.modoPreparo} onChange={e => update('modoPreparo', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none resize-none" />
-        <p className="text-xs text-gray-400 mt-1">{data.modoPreparo.length} caracteres</p>
-      </div>
-      <FileDropzone
-        label="Foto do Prato (opcional)"
-        accept=".jpg,.jpeg,.png"
-        value={data.fotoReceita}
-        onChange={f => update('fotoReceita', f)}
-        hint="JPG ou PNG — máx. 5MB"
-      />
-    </div>
-  );
-}
-
-// ── Passo 4 ────────────────────────────────────────────────────
 function StepIngredientes({ ingredientes, categorias, selected, toggle, updateQuantidade }: {
-  ingredientes: Ingrediente[];
-  categorias: string[];
+  ingredientes: Ingrediente[]; categorias: string[];
   selected: { id: number; quantidade: string }[];
   toggle: (id: number) => void;
   updateQuantidade: (id: number, quantidade: string) => void;
@@ -400,38 +331,31 @@ function StepIngredientes({ ingredientes, categorias, selected, toggle, updateQu
       <h2 className="text-xl font-bold text-gray-800">🥕 Ingredientes (Anexo I)</h2>
       <p className="text-sm text-gray-600">
         Selecione os ingredientes do pregão FAETEC e informe a quantidade de cada um.
-        <span className="ml-1 text-orange-600 font-semibold">({selected.length} selecionados — mín. 3)</span>
+        <span className="ml-1 text-orange-600 font-semibold">({selected.length} selecionados)</span>
       </p>
       <input type="text" placeholder="🔍 Buscar ingrediente..." value={busca}
         onChange={e => setBusca(e.target.value)}
         className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
 
-      {/* Ingredientes selecionados com quantidade */}
       {selected.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-2">
-          <p className="text-sm font-bold text-orange-700 mb-2">✅ Ingredientes selecionados — informe a quantidade:</p>
+          <p className="text-sm font-bold text-orange-700 mb-2">✅ Selecionados — informe a quantidade:</p>
           {selected.map(sel => {
             const ing = ingredientes.find(i => i.id === sel.id);
             if (!ing) return null;
             return (
               <div key={sel.id} className="flex items-center gap-2">
                 <span className="flex-1 text-sm text-gray-800 font-medium">{ing.nome}</span>
-                <input
-                  type="text"
-                  placeholder={`Qtd (${ing.unidadeMedida})`}
-                  value={sel.quantidade}
-                  onChange={e => updateQuantidade(sel.id, e.target.value)}
-                  className="w-32 border border-orange-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-400 outline-none"
-                />
-                <button onClick={() => toggle(sel.id)}
-                  className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
+                <input type="text" placeholder={`Qtd (${ing.unidadeMedida})`}
+                  value={sel.quantidade} onChange={e => updateQuantidade(sel.id, e.target.value)}
+                  className="w-32 border border-orange-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-400 outline-none" />
+                <button onClick={() => toggle(sel.id)} className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Lista de ingredientes */}
       <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
         {categorias.map(cat => {
           const items = filtered.filter(i => i.categoria === cat);
@@ -465,7 +389,64 @@ function StepIngredientes({ ingredientes, categorias, selected, toggle, updateQu
   );
 }
 
-// ── Passo 5 ────────────────────────────────────────────────────
+function StepReceita({ data, update, ingredientes }: {
+  data: WizardData;
+  update: (k: keyof WizardData, v: unknown) => void;
+  ingredientes: Ingrediente[];
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-gray-800">🍽️ Sua Receita</h2>
+
+      {/* Ingredientes selecionados */}
+      {data.ingredientes.length > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-sm font-bold text-green-700 mb-2">🥕 Ingredientes selecionados ({data.ingredientes.length}):</p>
+          <div className="flex flex-wrap gap-2">
+            {data.ingredientes.map(sel => {
+              const ing = ingredientes.find(i => i.id === sel.id);
+              if (!ing) return null;
+              return (
+                <span key={sel.id} className={`text-xs px-2 py-1 rounded-full border
+                  ${ing.isInNatura ? 'bg-green-100 border-green-300 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-600'}`}>
+                  {ing.nome}{sel.quantidade ? ` — ${sel.quantidade}` : ''}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Nome da Receita</label>
+        <input type="text" placeholder="Ex: Feijoada Carioca da Vovó"
+          value={data.nomeReceita} onChange={e => update('nomeReceita', e.target.value)}
+          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição do Prato</label>
+        <textarea rows={4} placeholder="Descreva seu prato, origem cultural, curiosidades..."
+          value={data.descricao} onChange={e => update('descricao', e.target.value)}
+          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none resize-none" />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Modo de Preparo</label>
+        <textarea rows={6} placeholder="Descreva passo a passo como preparar a receita..."
+          value={data.modoPreparo} onChange={e => update('modoPreparo', e.target.value)}
+          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none resize-none" />
+        <p className="text-xs text-gray-400 mt-1">{data.modoPreparo.length} caracteres</p>
+      </div>
+      <FileDropzone
+        label="Foto do Prato (opcional)"
+        accept=".jpg,.jpeg,.png"
+        value={data.fotoReceita}
+        onChange={f => update('fotoReceita', f)}
+        hint="JPG ou PNG — máx. 5MB"
+      />
+    </div>
+  );
+}
+
 function StepTermos({ data, update, onAbrirTermos }: {
   data: WizardData;
   update: (k: keyof WizardData, v: unknown) => void;
@@ -481,9 +462,9 @@ function StepTermos({ data, update, onAbrirTermos }: {
             onChange={e => update('aceitouLgpd', e.target.checked)}
             className="accent-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-gray-800">Termo de Uso e LGPD *</p>
+            <p className="font-semibold text-gray-800">Termo de Uso e LGPD</p>
             <p className="text-sm text-gray-600 mt-1">
-              Declaro que li e concordo com os termos de uso e autorizo o tratamento dos meus dados pessoais pela FAETEC conforme a Lei nº 13.709/2018 (LGPD), para fins exclusivos deste concurso culinário.
+              Declaro que li e concordo com os termos de uso e autorizo o tratamento dos meus dados pessoais pela FAETEC conforme a Lei nº 13.709/2018 (LGPD).
             </p>
           </div>
         </label>
@@ -494,9 +475,9 @@ function StepTermos({ data, update, onAbrirTermos }: {
             onChange={e => update('autorizouUsoImagem', e.target.checked)}
             className="accent-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-gray-800">Autorização de Uso de Imagem *</p>
+            <p className="font-semibold text-gray-800">Autorização de Uso de Imagem</p>
             <p className="text-sm text-gray-600 mt-1">
-              Autorizo a FAETEC a utilizar minha imagem, nome, receita e demais informações submetidas neste concurso para fins institucionais e divulgação nos canais oficiais da rede, sem ônus.
+              Autorizo a FAETEC a utilizar minha imagem, nome e receita para fins institucionais e divulgação nos canais oficiais da rede.
             </p>
           </div>
         </label>
@@ -507,22 +488,21 @@ function StepTermos({ data, update, onAbrirTermos }: {
             onChange={e => update('aceitouTermosUso', e.target.checked)}
             className="accent-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-gray-800">Termos de Uso Completos *</p>
+            <p className="font-semibold text-gray-800">Termos de Uso Completos</p>
             <p className="text-sm text-gray-600 mt-1">
               Li e aceito os{' '}
-              <button type="button"
-                onClick={e => { e.preventDefault(); onAbrirTermos(); }}
+              <button type="button" onClick={e => { e.preventDefault(); onAbrirTermos(); }}
                 className="text-orange-600 underline font-semibold hover:text-orange-700">
                 Termos de Uso completos
               </button>
-              {' '}e autorizo o uso anonimizado dos meus dados e receita para fins de pesquisa científica e estudos nutricionais da FAETEC.
+              {' '}e autorizo o uso anonimizado dos meus dados para fins de pesquisa científica da FAETEC.
             </p>
           </div>
         </label>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-        ⚠️ <strong>Atenção:</strong> Após o envio, a inscrição não poderá ser alterada. Verifique todas as informações antes de confirmar.
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+        💡 <strong>Lembrete:</strong> Você pode salvar agora e editar sua inscrição depois, enquanto o prazo estiver aberto.
       </div>
     </div>
   );
