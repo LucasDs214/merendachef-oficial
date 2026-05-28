@@ -1,11 +1,18 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features; // Adicionado para acessar o FormOptions
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MerendaChef.Api.Data;
 using MerendaChef.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. Aumentar limite global de requisição do Kestrel (Exemplo: 50MB)
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 52428800; // 50 MB em bytes
+});
 
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -24,6 +31,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
         };
     });
+
+// 2. Aumentar limite de leitura de formulários/arquivos no .NET (Exemplo: 50MB)
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 52428800; // 50 MB em bytes
+});
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
