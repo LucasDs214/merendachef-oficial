@@ -174,7 +174,7 @@ function LoginPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/favicon.png" alt="MerendaChef" className="w-40 h-40 rounded-3xl shadow-lg mx-auto mb-4" />
+          <img src="/logo3D.png" alt="MerendaChef" className="w-40 h-40 rounded-3xl shadow-lg mx-auto mb-4" />
           <h1 className="text-3xl font-black text-gray-900">MerendaChef</h1>
           <p className="text-orange-600 font-medium mt-1">Concurso Culinário FAETEC 2026</p>
         </div>
@@ -301,7 +301,7 @@ function InscricaoPage() {
     <div className="min-h-screen bg-orange-50">
       <header className="bg-white border-b border-orange-100 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/favicon.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
+          <img src="/logo3D.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
           <span className="font-bold text-orange-700">MerendaChef</span>
         </div>
         <div className="flex items-center gap-3">
@@ -345,7 +345,7 @@ function AdminLoginPage() {
     <div className="min-h-screen bg-blue-950 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
         <div className="text-center mb-6">
-          <img src="/favicon.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
+          <img src="/logo3D.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
           <h2 className="text-xl font-bold">Acesso Administrativo</h2>
           <p className="text-gray-500 text-sm">MerendaChef — FAETEC</p>
         </div>
@@ -391,7 +391,7 @@ function InsumoPage() {
     <div className="min-h-screen bg-orange-50">
       <header className="bg-white border-b border-orange-100 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/favicon.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
+          <img src="/logo3D.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
           <span className="font-bold text-orange-700">MerendaChef</span>
         </div>
         <Link to="/login" className="text-sm text-orange-600 font-semibold hover:text-orange-800">
