@@ -551,19 +551,25 @@ function TrocarSenhaPage() {
   const [modalErro, setModalErro] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.novaSenha !== form.confirmar) { setError('As senhas não coincidem.'); return; }
-    if (form.novaSenha.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return; }
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  if (form.novaSenha !== form.confirmar) { setError('As senhas não coincidem.'); return; }
+  if (form.novaSenha.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return; }
+  setLoading(true);
+  setError('');
+  try {
+    await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
+    // Verifica se já tem inscrição
     try {
-      await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
+      await inscricaoApi.minha();
+      navigate('/minha-inscricao');
+    } catch {
       navigate('/inscricao');
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setModalErro(err.response?.data?.error || 'Erro ao trocar senha.');
-    } finally { setLoading(false); }
-  };
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } };
+    setModalErro(err.response?.data?.error || 'Erro ao trocar senha.');
+  } finally { setLoading(false); }
+};
 
   return (
     <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
