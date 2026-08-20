@@ -45,7 +45,7 @@ public class AuthController : ControllerBase
             Cpf = cpf,
             Email = dto.Email,
             SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha),
-            PrimeiroAcesso = candidato.PrimeiroAcesso
+            PrimeiroAcesso = false
         };
 
         _db.Candidatos.Add(candidato);
@@ -68,7 +68,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             token,
-            primeiroAcesso = false,
+            primeiroAcesso = candidato.PrimeiroAcesso,
             nome = candidato.Nome,
             id = candidato.Id
         });
