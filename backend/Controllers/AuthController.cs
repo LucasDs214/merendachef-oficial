@@ -16,11 +16,12 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IEmailService _email;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext db, IConfiguration config, ILogger<AuthController> logger)
+    public AuthController(AppDbContext db, IConfiguration config, IEmailService email, ILogger<AuthController> logger)
     {
-        _db = db; _config = config; _logger = logger;
+        _db = db; _config = config; _email = email; _logger = logger;
     }
 
     [HttpPost("registro")]
@@ -117,9 +118,13 @@ public class AuthController : ControllerBase
         candidato.PrimeiroAcesso = true;
         await _db.SaveChangesAsync();
 
+        var emailDestino = candidato.Email;
+        var emailNome = candidato.Nome;
+        var emailService = _email;
+
         _ = Task.Run(async () =>
         {
-            try { await _email.EnviarSenhaTemporariaAsync(candidato.Email, candidato.Nome, novaSenha); }
+            try { await emailService.EnviarSenhaTemporariaAsync(emailDestino, emailNome, novaSenha); }
             catch (Exception ex) { Console.WriteLine($"📧 [EMAIL FALHOU] {ex.Message}"); }
         });
 
@@ -146,6 +151,13 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    private static string GerarSenhaTemporaria()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!";
+        var rng = new Random();
+        return new string(Enumerable.Range(0, 10).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+    }
+
     private static bool ValidarSenha(string senha, out string erro)
     {
         erro = string.Empty;
@@ -154,13 +166,6 @@ public class AuthController : ControllerBase
         if (!senha.Any(char.IsLower)) { erro = "A senha deve conter ao menos uma letra minúscula."; return false; }
         if (!senha.Any(c => !char.IsLetterOrDigit(c))) { erro = "A senha deve conter ao menos um símbolo (@, #, !, etc)."; return false; }
         return true;
-    }
-
-    private static string GerarSenhaTemporaria()
-    {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!";
-        var rng = new Random();
-        return new string(Enumerable.Range(0, 10).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
     }
 
     private static bool ValidarCpf(string cpf)
@@ -177,9 +182,8 @@ public class AuthController : ControllerBase
     }
 }
 
-public record ResetSenhaDto(string Cpf);
-
 public record RegistroDto(string Nome, string Cpf, string Email, string Senha);
 public record LoginDto(string Cpf, string Senha);
 public record TrocarSenhaDto(string SenhaAtual, string NovaSenha);
 public record AdminLoginDto(string Email, string Senha);
+public record ResetSenhaDto(string Cpf);
