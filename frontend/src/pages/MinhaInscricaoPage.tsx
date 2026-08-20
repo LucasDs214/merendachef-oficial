@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { inscricaoApi } from '../utils/api';
 import { useAuthStore } from '../hooks/useAuth';
+import { InscricaoWizard } from '../components/wizard/InscricaoWizard';
+import type { Ingrediente } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -27,6 +29,8 @@ interface MinhaInscricao {
   convocadoEm?: string;
   ingredientes: Array<{ id: number; nome: string; isInNatura: boolean; quantidade?: string }>;
   criadaEm: string;
+  podeEditar?: boolean;
+  prazoEdicao?: string;
 }
 
 export function MinhaInscricaoPage() {
@@ -36,12 +40,20 @@ export function MinhaInscricaoPage() {
   const [loading, setLoading] = useState(true);
   const [semInscricao, setSemInscricao] = useState(false);
   const [modalArquivo, setModalArquivo] = useState<{ url: string; tipo: 'imagem' | 'pdf' } | null>(null);
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
 
-  useEffect(() => {
+  const carregar = () => {
+    setLoading(true);
     inscricaoApi.minha()
       .then(r => setInscricao(r.data))
       .catch(e => { if (e.response?.status === 404) setSemInscricao(true); })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    carregar();
+    inscricaoApi.ingredientes().then(r => setIngredientes(r.data));
   }, []);
 
   const formatarData = (data: string) =>
@@ -79,6 +91,53 @@ export function MinhaInscricaoPage() {
       descricao: 'Sua receita foi selecionada entre as 12 melhores! Você está convocado para a etapa presencial.'
     }
   };
+
+  // Modo edição — abre o wizard com dados preenchidos
+  if (modoEdicao && inscricao) {
+    const dadosIniciais = {
+      unidadeEscolar: inscricao.candidato.unidadeEscolar,
+      nomeDiretor: inscricao.candidato.nomeDiretor,
+      matricula: inscricao.candidato.matricula,
+      cargo: inscricao.candidato.cargo,
+      telefone: inscricao.candidato.telefone,
+      nomeReceita: inscricao.nomeReceita,
+      descricao: inscricao.descricao,
+      modoPreparo: inscricao.modoPreparo || '',
+      ingredientes: inscricao.ingredientes.map(i => ({ id: i.id, quantidade: i.quantidade || '' })),
+    };
+
+    return (
+      <div className="min-h-screen bg-orange-50">
+        <header className="bg-white border-b border-orange-100 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src="/favicon.png" alt="MerendaChef" className="w-8 h-8 rounded-lg" />
+            <span className="font-bold text-orange-700">MerendaChef</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setModoEdicao(false)}
+              className="text-sm text-orange-600 hover:text-orange-800 font-semibold">
+              ← Voltar à ficha
+            </button>
+            <button onClick={() => { logout(); navigate('/login'); }}
+              className="text-sm text-gray-500 hover:text-gray-700">Sair</button>
+          </div>
+        </header>
+        <div className="py-4">
+          <h1 className="text-center text-2xl font-black text-gray-800 mb-1">Editar Inscrição</h1>
+          <p className="text-center text-gray-500 text-sm mb-4">Concurso Culinário FAETEC 2026</p>
+          <InscricaoWizard
+            ingredientes={ingredientes}
+            modoEdicao={true}
+            dadosIniciais={dadosIniciais}
+            onSucesso={() => {
+              setModoEdicao(false);
+              carregar();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-orange-50">
@@ -170,7 +229,28 @@ export function MinhaInscricaoPage() {
                 )}
               </div>
 
-              {/* Comprovante de inscrição */}
+              {/* Botão Editar */}
+              {inscricao.podeEditar && (
+                <button
+                  onClick={() => setModoEdicao(true)}
+                  className="w-full py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition shadow flex items-center justify-center gap-2">
+                  ✏️ Editar Inscrição
+                  {inscricao.prazoEdicao && (
+                    <span className="text-xs text-orange-200 font-normal">
+                      (prazo: {formatarData(inscricao.prazoEdicao)})
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {/* Prazo expirado */}
+              {inscricao.podeEditar === false && inscricao.prazoEdicao && (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 text-center text-sm text-gray-500">
+                  🔒 Prazo de edição encerrado em {formatarData(inscricao.prazoEdicao)}
+                </div>
+              )}
+
+              {/* Comprovante */}
               {inscricao.hashInscricao && (
                 <div className="bg-white rounded-2xl shadow p-6 border border-gray-100">
                   <h3 className="font-bold text-gray-800 mb-3">🔑 Comprovante de Inscrição</h3>

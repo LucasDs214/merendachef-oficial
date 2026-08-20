@@ -36,9 +36,11 @@ public class SmtpEmailService : IEmailService
         var pass = _config["Email:Password"];
         var from = _config["Email:From"];
 
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var client = new MailKit.Net.Smtp.SmtpClient();
-        await client.ConnectAsync(host, port, false);
-        await client.AuthenticateAsync(user, pass);
+
+        await client.ConnectAsync(host, port, false, cts.Token);
+        await client.AuthenticateAsync(user, pass, cts.Token);
 
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("MerendaChef - Não Responda", from));
@@ -46,8 +48,8 @@ public class SmtpEmailService : IEmailService
         message.Subject = assunto;
         message.Body = new MimeKit.TextPart("html") { Text = corpoHtml };
 
-        await client.SendAsync(message);
-        await client.DisconnectAsync(true);
+        await client.SendAsync(message, cts.Token);
+        await client.DisconnectAsync(true, cts.Token);
         _logger.LogInformation("✅ E-mail enviado para {Email}: {Assunto}", destinatario, assunto);
     }
 
@@ -108,7 +110,6 @@ public class SmtpEmailService : IEmailService
 
     public async Task EnviarConvocacaoSegundaFaseAsync(string destinatario, string nome, string nomeReceita, DateTime data, string local)
     {
-        // data já chega convertida para Brasília pelo controller
         var html = $@"
         <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto'>
             <div style='background:#e85d24;padding:20px;text-align:center'>

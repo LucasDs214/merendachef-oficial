@@ -5,7 +5,7 @@ import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-type Tab = 'inscricoes' | 'ranking' | 'admins';
+type Tab = 'inscricoes' | 'ranking' | 'admins' | 'configuracoes';
 
 interface AdminItem {
   id: string;
@@ -43,6 +43,9 @@ export function AdminPanel() {
   const [adminMsg, setAdminMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
   const [loadingAdmin, setLoadingAdmin] = useState(false);
   const [modalArquivo, setModalArquivo] = useState<{ url: string; tipo: 'imagem' | 'pdf' } | null>(null);
+  const [config, setConfig] = useState({ prazoEdicao: '', inscricoesAbertas: true });
+  const [configMsg, setConfigMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
@@ -66,9 +69,36 @@ export function AdminPanel() {
     setAdmins(res.data);
   };
 
+  const carregarConfig = async () => {
+    try {
+      const res = await adminApi.getConfiguracoes();
+      setConfig({
+        prazoEdicao: res.data.prazoEdicaoInscricao
+          ? new Date(res.data.prazoEdicaoInscricao).toISOString().slice(0, 16)
+          : '',
+        inscricoesAbertas: res.data.inscricoesAbertas
+      });
+    } catch {}
+  };
+
+  const salvarConfig = async () => {
+    setLoadingConfig(true);
+    setConfigMsg(null);
+    try {
+      await adminApi.salvarConfiguracoes({
+        prazoEdicaoInscricao: config.prazoEdicao ? new Date(config.prazoEdicao).toISOString() : null,
+        inscricoesAbertas: config.inscricoesAbertas
+      });
+      setConfigMsg({ texto: 'Configurações salvas com sucesso!', tipo: 'sucesso' });
+    } catch {
+      setConfigMsg({ texto: 'Erro ao salvar configurações.', tipo: 'erro' });
+    } finally { setLoadingConfig(false); }
+  };
+
   useEffect(() => { carregar(); }, [filtroStatus]);
   useEffect(() => { if (tab === 'ranking') carregarRanking(); }, [tab]);
   useEffect(() => { if (tab === 'admins') carregarAdmins(); }, [tab]);
+  useEffect(() => { if (tab === 'configuracoes') carregarConfig(); }, [tab]);
 
   const abrirFicha = (insc: InscricaoAdmin) => {
     setSelected(insc);
@@ -175,12 +205,12 @@ export function AdminPanel() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex gap-2 mb-6">
-          {(['inscricoes', 'ranking', 'admins'] as Tab[]).map(t => (
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {(['inscricoes', 'ranking', 'admins', 'configuracoes'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-5 py-2.5 rounded-lg font-semibold transition
                 ${tab === t ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}>
-              {t === 'inscricoes' ? '📋 Inscrições' : t === 'ranking' ? '🏆 Ranking' : '👤 Admins'}
+              {t === 'inscricoes' ? '📋 Inscrições' : t === 'ranking' ? '🏆 Ranking' : t === 'admins' ? '👤 Admins' : '⚙️ Configurações'}
             </button>
           ))}
         </div>
@@ -327,6 +357,65 @@ export function AdminPanel() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Configurações */}
+        {tab === 'configuracoes' && (
+          <div className="max-w-lg">
+            <div className="bg-white rounded-xl border p-6 space-y-5">
+              <h2 className="text-lg font-bold text-gray-800">⚙️ Configurações do Sistema</h2>
+
+              {configMsg && (
+                <div className={`p-3 rounded-lg text-sm font-medium ${configMsg.tipo === 'sucesso' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                  {configMsg.tipo === 'sucesso' ? '✅' : '⚠️'} {configMsg.texto}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Prazo de Edição das Inscrições
+                </label>
+                <p className="text-xs text-gray-400 mb-2">
+                  Após esta data/hora os candidatos não poderão mais editar suas inscrições.
+                </p>
+                <input type="datetime-local"
+                  value={config.prazoEdicao}
+                  onChange={e => setConfig(c => ({ ...c, prazoEdicao: e.target.value }))}
+                  className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-400 outline-none text-sm" />
+                {config.prazoEdicao && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    📅 Prazo: {new Date(config.prazoEdicao).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Status das Inscrições</label>
+                <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition
+                  ${config.inscricoesAbertas ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <input type="checkbox"
+                    checked={config.inscricoesAbertas}
+                    onChange={e => setConfig(c => ({ ...c, inscricoesAbertas: e.target.checked }))}
+                    className="accent-green-600 w-5 h-5" />
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      {config.inscricoesAbertas ? '✅ Inscrições abertas' : '🔒 Inscrições encerradas'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {config.inscricoesAbertas
+                        ? 'Candidatos podem se inscrever normalmente.'
+                        : 'Novas inscrições estão bloqueadas.'}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <button onClick={salvarConfig} disabled={loadingConfig}
+                className="w-full py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition disabled:opacity-50">
+                {loadingConfig ? 'Salvando...' : '💾 Salvar Configurações'}
+              </button>
             </div>
           </div>
         )}
@@ -535,7 +624,6 @@ export function AdminPanel() {
                   </div>
                 </div>
               )}
-
             </div>
           </div>
         </div>
