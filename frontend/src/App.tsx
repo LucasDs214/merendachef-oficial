@@ -145,24 +145,27 @@ function LoginPage() {
   const [loadingReset, setLoadingReset] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setModalErro('');
-    try {
-      const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
-      setAuth(res.data.token, res.data.nome, 'candidato', false);
+  e.preventDefault();
+  setLoading(true);
+  setModalErro('');
+  try {
+    const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
+    setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
+    if (res.data.primeiroAcesso) {
+      navigate('/trocar-senha');
+    } else {
       try {
         await inscricaoApi.minha();
         navigate('/minha-inscricao');
       } catch {
         navigate('/inscricao');
       }
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setModalErro(err.response?.data?.error || 'CPF ou senha inválidos.');
-    } finally { setLoading(false); }
-  };
-
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } };
+    setModalErro(err.response?.data?.error || 'CPF ou senha inválidos.');
+  } finally { setLoading(false); }
+};
   const senhaValida = (s: string) =>
     s.length >= 8 && /[A-Z]/.test(s) && /[a-z]/.test(s) && /[^a-zA-Z0-9]/.test(s);
 
@@ -534,6 +537,65 @@ function InsumoPage() {
   );
 }
 
+function TrocarSenhaPage() {
+  const { nome } = useAuthStore();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [modalErro, setModalErro] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.novaSenha !== form.confirmar) { setError('As senhas não coincidem.'); return; }
+    if (form.novaSenha.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
+      navigate('/inscricao');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setModalErro(err.response?.data?.error || 'Erro ao trocar senha.');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
+      <ModalErro message={modalErro} onClose={() => setModalErro('')} />
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border border-orange-100">
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-2">🔐</div>
+          <h2 className="text-2xl font-bold text-gray-800">Trocar Senha</h2>
+          <p className="text-gray-500 text-sm mt-1">Olá, {nome}! Crie uma nova senha para continuar.</p>
+        </div>
+        {error && <ErroInline message={error} />}
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {[
+            { key: 'senhaAtual', label: 'Senha Temporária' },
+            { key: 'novaSenha', label: 'Nova Senha (mín. 8 caracteres)' },
+            { key: 'confirmar', label: 'Confirmar Nova Senha' },
+          ].map(({ key, label }) => (
+            <div key={key}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+              <PasswordInput
+                value={form[key as keyof typeof form]}
+                onChange={e => { setForm(f => ({ ...f, [key]: e.target.value })); setError(''); }}
+                className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10"
+              />
+            </div>
+          ))}
+          {form.novaSenha && <SenhaHint senha={form.novaSenha} />}
+          <button type="submit" disabled={loading}
+            className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
+            {loading ? 'Salvando...' : 'Salvar e Continuar →'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── App Router ─────────────────────────────────────────────────
 export default function App() {
   return (
@@ -547,6 +609,7 @@ export default function App() {
         <Route path="/minha-inscricao" element={<PrivateRoute role="candidato"><MinhaInscricaoPage /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute role="admin"><AdminPanel /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/trocar-senha" element={<PrivateRoute role="candidato"><TrocarSenhaPage /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   );

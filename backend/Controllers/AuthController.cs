@@ -45,7 +45,7 @@ public class AuthController : ControllerBase
             Cpf = cpf,
             Email = dto.Email,
             SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha),
-            PrimeiroAcesso = false
+            PrimeiroAcesso = candidato.PrimeiroAcesso
         };
 
         _db.Candidatos.Add(candidato);
