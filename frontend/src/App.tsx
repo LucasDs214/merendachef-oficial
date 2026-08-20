@@ -26,6 +26,26 @@ function Toast({ message, type, onClose }: { message: string; type: 'error' | 's
   );
 }
 
+// ── Modal Erro ─────────────────────────────────────────────────
+function ModalErro({ message, onClose }: { message: string; onClose: () => void }) {
+  if (!message) return null;
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center"
+        onClick={e => e.stopPropagation()}>
+        <div className="text-5xl mb-4">⚠️</div>
+        <h3 className="text-lg font-bold text-gray-800 mb-2">Atenção</h3>
+        <p className="text-gray-600 text-sm mb-6">{message}</p>
+        <button onClick={onClose}
+          className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition">
+          Entendido
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Eye Icon ───────────────────────────────────────────────────
 function EyeIcon({ show, toggle }: { show: boolean; toggle: () => void }) {
   return (
@@ -113,17 +133,21 @@ function LoginPage() {
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [modalErro, setModalErro] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
-  // Abre no login por padrão
   const [mode, setMode] = useState<'login' | 'registro'>('login');
   const [regData, setRegData] = useState({ nome: '', cpf: '', email: '', senha: '', confirmarSenha: '' });
   const [regError, setRegError] = useState('');
 
+  // Esqueci senha
+  const [modalReset, setModalReset] = useState(false);
+  const [resetCpf, setResetCpf] = useState('');
+  const [loadingReset, setLoadingReset] = useState(false);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setModalErro('');
     try {
       const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
       setAuth(res.data.token, res.data.nome, 'candidato', false);
@@ -135,7 +159,7 @@ function LoginPage() {
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error || 'CPF ou senha inválidos.');
+      setModalErro(err.response?.data?.error || 'CPF ou senha inválidos.');
     } finally { setLoading(false); }
   };
 
@@ -145,14 +169,12 @@ function LoginPage() {
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
-
     if (!senhaValida(regData.senha)) {
       setRegError('A senha não atende aos requisitos mínimos.'); return;
     }
     if (regData.senha !== regData.confirmarSenha) {
       setRegError('As senhas não coincidem.'); return;
     }
-
     setLoading(true);
     try {
       await authApi.registrar({
@@ -165,13 +187,66 @@ function LoginPage() {
       setMode('login');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setRegError(err.response?.data?.error || 'Erro no cadastro.');
+      setModalErro(err.response?.data?.error || 'Erro no cadastro.');
     } finally { setLoading(false); }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingReset(true);
+    try {
+      await authApi.resetSenha(resetCpf.replace(/\D/g, ''));
+      setModalReset(false);
+      setResetCpf('');
+      setToast({ message: 'Nova senha enviada para o seu e-mail!', type: 'success' });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setModalErro(err.response?.data?.error || 'CPF não encontrado.');
+      setModalReset(false);
+    } finally { setLoadingReset(false); }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center p-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <ModalErro message={modalErro} onClose={() => setModalErro('')} />
+
+      {/* Modal Esqueci Senha */}
+      {modalReset && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          onClick={() => { setModalReset(false); setResetCpf(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="text-4xl mb-2">🔑</div>
+              <h3 className="text-lg font-bold text-gray-800">Esqueci minha senha</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Digite seu CPF e enviaremos uma nova senha temporária para o e-mail cadastrado.
+              </p>
+            </div>
+            <form onSubmit={handleReset} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
+                <input type="text" placeholder="000.000.000-00"
+                  value={resetCpf}
+                  onChange={e => setResetCpf(maskCpf(e.target.value))}
+                  maxLength={14}
+                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none"
+                  required />
+              </div>
+              <button type="submit" disabled={loadingReset}
+                className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50">
+                {loadingReset ? 'Enviando...' : 'Enviar nova senha'}
+              </button>
+              <button type="button" onClick={() => { setModalReset(false); setResetCpf(''); }}
+                className="w-full py-2 text-sm text-gray-500 hover:text-gray-700">
+                Cancelar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img src="/logo3D.png" alt="MerendaChef" className="w-40 h-40 rounded-3xl shadow-lg mx-auto mb-4" />
@@ -181,8 +256,8 @@ function LoginPage() {
 
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-orange-100">
           <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
-            {(['registro', 'login'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError(''); setRegError(''); }}
+            {(['login', 'registro'] as const).map(m => (
+              <button key={m} onClick={() => { setMode(m); setModalErro(''); setRegError(''); }}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition
                   ${mode === m ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
                 {m === 'login' ? 'Entrar' : 'Cadastrar'}
@@ -192,23 +267,27 @@ function LoginPage() {
 
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
-              <ErroInline message={error} />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
                 <input type="text" placeholder="000.000.000-00"
                   value={cpf}
-                  onChange={e => { setCpf(maskCpf(e.target.value)); setError(''); }}
+                  onChange={e => setCpf(maskCpf(e.target.value))}
                   maxLength={14}
                   className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none" required />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Senha</label>
-                <PasswordInput value={senha} onChange={e => { setSenha(e.target.value); setError(''); }}
+                <PasswordInput value={senha} onChange={e => setSenha(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none pr-10" />
               </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition disabled:opacity-50 shadow">
                 {loading ? 'Entrando...' : 'Entrar →'}
+              </button>
+              <button type="button"
+                onClick={() => { setModalReset(true); setResetCpf(''); }}
+                className="w-full text-sm text-orange-500 hover:text-orange-700 text-center">
+                Esqueci minha senha
               </button>
             </form>
           )}
@@ -326,35 +405,35 @@ function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [modalErro, setModalErro] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setModalErro('');
     try {
       const res = await authApi.adminLogin({ email, senha });
       setAuth(res.data.token, res.data.nome, 'admin');
       navigate('/admin');
     } catch {
-      setError('Credenciais inválidas.');
+      setModalErro('Credenciais inválidas. Verifique seu e-mail e senha.');
     } finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen bg-blue-950 flex items-center justify-center p-4">
+      <ModalErro message={modalErro} onClose={() => setModalErro('')} />
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
         <div className="text-center mb-6">
           <img src="/logo3D.png" alt="MerendaChef" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
           <h2 className="text-xl font-bold">Acesso Administrativo</h2>
           <p className="text-gray-500 text-sm">MerendaChef — FAETEC</p>
         </div>
-        <ErroInline message={error} />
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" placeholder="E-mail" value={email}
-            onChange={e => { setEmail(e.target.value); setError(''); }}
+            onChange={e => { setEmail(e.target.value); }}
             className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none" required />
-          <PasswordInput value={senha} onChange={e => { setSenha(e.target.value); setError(''); }}
+          <PasswordInput value={senha} onChange={e => { setSenha(e.target.value); }}
             placeholder="Senha"
             className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-400 outline-none pr-10" />
           <button type="submit" disabled={loading}

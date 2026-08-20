@@ -104,6 +104,28 @@ public class AuthController : ControllerBase
         return Ok(new { token, nome = admin.Nome });
     }
 
+    [HttpPost("reset-senha")]
+    public async Task<IActionResult> ResetSenha([FromBody] ResetSenhaDto dto)
+    {
+        var cpf = dto.Cpf.Replace(".", "").Replace("-", "");
+        var candidato = await _db.Candidatos.FirstOrDefaultAsync(c => c.Cpf == cpf);
+        if (candidato == null)
+            return NotFound(new { error = "CPF não encontrado." });
+
+        var novaSenha = GerarSenhaTemporaria();
+        candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(novaSenha);
+        candidato.PrimeiroAcesso = true;
+        await _db.SaveChangesAsync();
+
+        _ = Task.Run(async () =>
+        {
+            try { await _email.EnviarSenhaTemporariaAsync(candidato.Email, candidato.Nome, novaSenha); }
+            catch (Exception ex) { Console.WriteLine($"📧 [EMAIL FALHOU] {ex.Message}"); }
+        });
+
+        return Ok(new { message = "Nova senha enviada para o e-mail cadastrado." });
+    }
+
     private string GerarToken(string id, string email, string role)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Secret"]!));
@@ -134,6 +156,13 @@ public class AuthController : ControllerBase
         return true;
     }
 
+    private static string GerarSenhaTemporaria()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!";
+        var rng = new Random();
+        return new string(Enumerable.Range(0, 10).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+    }
+
     private static bool ValidarCpf(string cpf)
     {
         if (cpf.Length != 11 || cpf.All(c => c == cpf[0])) return false;
@@ -147,6 +176,8 @@ public class AuthController : ControllerBase
         return r2 == cpf[10] - '0';
     }
 }
+
+public record ResetSenhaDto(string Cpf);
 
 public record RegistroDto(string Nome, string Cpf, string Email, string Senha);
 public record LoginDto(string Cpf, string Senha);

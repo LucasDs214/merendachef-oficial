@@ -80,6 +80,8 @@ export const authApi = {
     api.post('/api/auth/trocar-senha', data),
   adminLogin: (data: { email: string; senha: string }) =>
     api.post('/api/auth/admin/login', data),
+  resetSenha: (cpf: string) =>
+    api.post('/api/auth/reset-senha', { cpf }),
 };
 
 // Inscrições
