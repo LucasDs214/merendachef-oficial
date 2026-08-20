@@ -151,6 +151,10 @@ function LoginPage() {
   try {
     const res = await authApi.login({ cpf: cpf.replace(/\D/g, ''), senha });
     setAuth(res.data.token, res.data.nome, 'candidato', res.data.primeiroAcesso);
+    
+    // Aguarda o estado ser atualizado antes de navegar
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     if (res.data.primeiroAcesso) {
       navigate('/trocar-senha');
     } else {
@@ -166,6 +170,7 @@ function LoginPage() {
     setModalErro(err.response?.data?.error || 'CPF ou senha inválidos.');
   } finally { setLoading(false); }
 };
+
   const senhaValida = (s: string) =>
     s.length >= 8 && /[A-Z]/.test(s) && /[a-z]/.test(s) && /[^a-zA-Z0-9]/.test(s);
 

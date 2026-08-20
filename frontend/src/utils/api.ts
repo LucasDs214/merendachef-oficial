@@ -57,12 +57,20 @@ api.interceptors.request.use(config => {
 });
 
 api.interceptors.response.use(
-  r => { hideSpinner(); return r; },
+  r => {
+    if (!(r.config as any)._skipSpinner) hideSpinner();
+    return r;
+  },
   err => {
-    hideSpinner();
+    if (!(err.config as any)._skipSpinner) hideSpinner();
+    // Só redireciona para login se NÃO for rota de auth
     if (err.response?.status === 401) {
-      localStorage.removeItem('mc_token');
-      window.location.href = '/login';
+      const isAuthRoute = ['/api/auth/login', '/api/auth/admin/login', '/api/auth/reset-senha']
+        .some(r => err.config?.url?.includes(r));
+      if (!isAuthRoute) {
+        localStorage.removeItem('mc_token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }
