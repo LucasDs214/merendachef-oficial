@@ -115,8 +115,8 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
-  // Abre no cadastro por padrão
-  const [mode, setMode] = useState<'login' | 'registro'>('registro');
+  // Abre no login por padrão
+  const [mode, setMode] = useState<'login' | 'registro'>('login');
   const [regData, setRegData] = useState({ nome: '', cpf: '', email: '', senha: '', confirmarSenha: '' });
   const [regError, setRegError] = useState('');
 

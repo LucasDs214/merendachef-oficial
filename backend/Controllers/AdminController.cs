@@ -139,7 +139,9 @@ public class AdminController : ControllerBase
     {
         var inscricoes = await _db.Inscricoes
             .Include(i => i.Candidato)
-            .Where(i => i.Status == StatusInscricao.Habilitada && i.NotaTotal.HasValue)
+            .Where(i =>
+                (i.Status == StatusInscricao.Habilitada || i.Status == StatusInscricao.ConvocadoSegundaFase)
+                && i.NotaTotal.HasValue)
             .ToListAsync();
 
         var rankingOrdenado = inscricoes
@@ -153,6 +155,7 @@ public class AdminController : ControllerBase
                 posicao = idx + 1,
                 candidato = i.Candidato.Nome,
                 nomeReceita = i.NomeReceita,
+                status = i.Status.ToString(),
                 notas = new
                 {
                     viabilidade = i.NotaViabilidade,
@@ -168,45 +171,51 @@ public class AdminController : ControllerBase
     }
 
     [HttpPatch("inscricoes/{id:guid}/convocar")]
-    public async Task<IActionResult> Convocar(Guid id, [FromBody] ConvocarDto dto)
+public async Task<IActionResult> Convocar(Guid id, [FromBody] ConvocarDto dto)
+{
+    var inscricao = await _db.Inscricoes
+        .Include(i => i.Candidato)
+        .FirstOrDefaultAsync(i => i.Id == id);
+
+    if (inscricao == null) return NotFound();
+    if (inscricao.Status != StatusInscricao.Habilitada)
+        return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
+
+    var dataUtc = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Unspecified);
+    var dataLocalBrasilia = TimeZoneInfo.ConvertTimeToUtc(dataUtc, BrasiliaZone);
+
+    inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
+    inscricao.DataSegundaFase = dataLocalBrasilia;
+    inscricao.LocalSegundaFase = dto.LocalSegundaFase;
+    inscricao.ConvocadoEm = DateTime.UtcNow;
+    inscricao.AtualizadaEm = DateTime.UtcNow;
+
+    await _db.SaveChangesAsync();
+
+    // Fire-and-forget — não bloqueia a resposta
+    var emailDestino = inscricao.Candidato.Email;
+    var emailNome = inscricao.Candidato.Nome;
+    var emailReceita = inscricao.NomeReceita;
+    var emailLocal = dto.LocalSegundaFase;
+    var dataParaEmail = TimeZoneInfo.ConvertTimeFromUtc(dataLocalBrasilia, BrasiliaZone);
+    var emailService = _email;
+
+    _ = Task.Run(async () =>
     {
-        var inscricao = await _db.Inscricoes
-            .Include(i => i.Candidato)
-            .FirstOrDefaultAsync(i => i.Id == id);
-
-        if (inscricao == null) return NotFound();
-        if (inscricao.Status != StatusInscricao.Habilitada)
-            return BadRequest(new { error = "Apenas inscrições habilitadas podem ser convocadas." });
-
-        var dataUtc = DateTime.SpecifyKind(dto.DataSegundaFase, DateTimeKind.Unspecified);
-        var dataLocalBrasilia = TimeZoneInfo.ConvertTimeToUtc(dataUtc, BrasiliaZone);
-
-        inscricao.Status = StatusInscricao.ConvocadoSegundaFase;
-        inscricao.DataSegundaFase = dataLocalBrasilia;
-        inscricao.LocalSegundaFase = dto.LocalSegundaFase;
-        inscricao.ConvocadoEm = DateTime.UtcNow;
-        inscricao.AtualizadaEm = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-
-        var dataParaEmail = TimeZoneInfo.ConvertTimeFromUtc(dataLocalBrasilia, BrasiliaZone);
         try
         {
-            await _email.EnviarConvocacaoSegundaFaseAsync(
-                inscricao.Candidato.Email,
-                inscricao.Candidato.Nome,
-                inscricao.NomeReceita,
-                dataParaEmail,
-                dto.LocalSegundaFase
-            );
+            await emailService.EnviarConvocacaoSegundaFaseAsync(
+                emailDestino, emailNome, emailReceita, dataParaEmail, emailLocal);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"📧 [EMAIL FALHOU] {ex.Message}");
         }
+    });
 
-        return Ok(new { message = "Candidato convocado com sucesso!" });
-    }
+    return Ok(new { message = "Candidato convocado com sucesso!" });
+}
+
 
     [HttpPost("admins")]
     public async Task<IActionResult> CriarAdmin([FromBody] CriarAdminDto dto)

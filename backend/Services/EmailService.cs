@@ -36,7 +36,7 @@ public class SmtpEmailService : IEmailService
         var pass = _config["Email:Password"];
         var from = _config["Email:From"];
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var client = new MailKit.Net.Smtp.SmtpClient();
 
         await client.ConnectAsync(host, port, false, cts.Token);
