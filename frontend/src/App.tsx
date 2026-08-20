@@ -543,7 +543,7 @@ function InsumoPage() {
 }
 
 function TrocarSenhaPage() {
-  const { nome } = useAuthStore();
+  const { nome, logout } = useAuthStore();
   const navigate = useNavigate();
   const [form, setForm] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
   const [loading, setLoading] = useState(false);
@@ -558,13 +558,8 @@ function TrocarSenhaPage() {
   setError('');
   try {
     await authApi.trocarSenha({ senhaAtual: form.senhaAtual, novaSenha: form.novaSenha });
-    // Verifica se já tem inscrição
-    try {
-      await inscricaoApi.minha();
-      navigate('/minha-inscricao');
-    } catch {
-      navigate('/inscricao');
-    }
+    logout();
+    navigate('/login');
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } };
     setModalErro(err.response?.data?.error || 'Erro ao trocar senha.');
