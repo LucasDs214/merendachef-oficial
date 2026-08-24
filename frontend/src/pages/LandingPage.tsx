@@ -150,7 +150,7 @@ const landingHtml = `
           <article class="card">
             <div class="card-icon" aria-hidden="true"><span class="emoji-icon">📘</span></div>
             <h4>Destaque no E-book</h4>
-            <p>As 12 melhores receitas serão publicadas em um livro digital exclusivo, eternizando sua técnica e criatividade.</p>
+            <p>As 20 melhores receitas serão publicadas em um livro digital exclusivo, eternizando sua técnica e criatividade.</p>
           </article>
         </div>
       </div>
@@ -197,7 +197,7 @@ const landingHtml = `
             <div class="num">3</div>
             <div>
               <h3>A Grande Final</h3>
-              <p>Os 13 melhores candidatos disputarão a etapa final, onde o talento será colocado à prova para definir quem é o grande mestre da culinária escolar.</p>
+              <p>Os 20 melhores candidatos disputarão a etapa final, onde o talento será colocado à prova para definir quem é o grande mestre da culinária escolar.</p>
             </div>
           </article>
         </div>
@@ -221,7 +221,7 @@ const landingHtml = `
         <h2>Mostre seu talento. Torne-se um MerendaChef</h2>
         <div class="btn-row">
           <a class="btn" href="/login">Inscreva-se</a>
-          <a class="btn" id="edital" href="#">Baixar Edital</a>
+          <a class="btn" id="edital" href="/edital-merendachef.pdf" target="_blank" rel="noopener noreferrer">Baixar Edital</a>
         </div>
       </div>
     </section>
