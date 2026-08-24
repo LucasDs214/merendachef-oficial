@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './hooks/useAuth';
-import { authApi, inscricaoApi } from './utils/api';
+import { authApi, inscricaoApi, candidatoApi } from './utils/api';
 import { InscricaoWizard } from './components/wizard/InscricaoWizard';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { MinhaInscricaoPage } from './pages/MinhaInscricaoPage';
+import { CompletarCadastroPage } from './pages/CompletarCadastroPage';
 import { maskCpf } from './utils/masks';
 import type { Ingrediente } from './types';
 import { LandingPage } from './pages/LandingPage';
@@ -159,10 +160,10 @@ function LoginPage() {
       navigate('/trocar-senha');
     } else {
       try {
-        await inscricaoApi.minha();
-        navigate('/minha-inscricao');
+        const perfil = await candidatoApi.getPerfil();
+        navigate(perfil.data.cadastroCompleto ? '/minha-inscricao' : '/completar-cadastro');
       } catch {
-        navigate('/inscricao');
+        navigate('/completar-cadastro');
       }
     }
   } catch (e: unknown) {
@@ -379,10 +380,24 @@ function InscricaoPage() {
   const { nome, logout } = useAuthStore();
   const navigate = useNavigate();
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
+  const [checandoPerfil, setChecandoPerfil] = useState(true);
 
   useEffect(() => {
     inscricaoApi.ingredientes().then(r => setIngredientes(r.data));
-  }, []);
+    candidatoApi.getPerfil()
+      .then(r => {
+        if (!r.data.cadastroCompleto) {
+          navigate('/completar-cadastro');
+        } else {
+          setChecandoPerfil(false);
+        }
+      })
+      .catch(() => navigate('/completar-cadastro'));
+  }, [navigate]);
+
+  if (checandoPerfil) {
+    return <div className="min-h-screen bg-orange-50 flex items-center justify-center text-gray-500">Carregando...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-orange-50">
@@ -398,7 +413,7 @@ function InscricaoPage() {
         </div>
       </header>
       <div className="py-4">
-        <h1 className="text-center text-2xl font-black text-gray-800 mb-1">Minha Inscrição</h1>
+        <h1 className="text-center text-2xl font-black text-gray-800 mb-1">Nova Receita</h1>
         <p className="text-center text-gray-500 text-sm mb-4">Concurso Culinário FAETEC 2026</p>
         <InscricaoWizard ingredientes={ingredientes} />
       </div>
@@ -612,6 +627,7 @@ export default function App() {
         <Route path="/insumos" element={<InsumoPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/inscricao" element={<PrivateRoute role="candidato"><InscricaoPage /></PrivateRoute>} />
+        <Route path="/completar-cadastro" element={<PrivateRoute role="candidato"><CompletarCadastroPage /></PrivateRoute>} />
         <Route path="/minha-inscricao" element={<PrivateRoute role="candidato"><MinhaInscricaoPage /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute role="admin"><AdminPanel /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />

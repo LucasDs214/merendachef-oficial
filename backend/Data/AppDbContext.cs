@@ -23,11 +23,11 @@ public class AppDbContext : DbContext
             e.Property(c => c.Cpf).HasMaxLength(11);
         });
 
-        // Inscricao -> Candidato 1:1
+        // Inscricao -> Candidato N:1 (Edital, item 4.9: cada participante pode enviar quantas receitas desejar)
         mb.Entity<Inscricao>(e => {
             e.HasOne(i => i.Candidato)
-             .WithOne(c => c.Inscricao)
-             .HasForeignKey<Inscricao>(i => i.CandidatoId)
+             .WithMany(c => c.Inscricoes)
+             .HasForeignKey(i => i.CandidatoId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -42,6 +42,13 @@ public class AppDbContext : DbContext
         mb.Entity<Ingrediente>().HasData(SeedIngredientes());
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ATENÇÃO: esta lista é o ANEXO I do Edital nº 01/2026 (Insumos do
+    // Pregão destinado à merenda escolar). NÃO adicione, remova ou altere
+    // nomes/unidades sem antes verificar a versão vigente do Anexo I —
+    // itens 3.2, 4.6, 5.2 e 5.3 do Edital exigem uso EXCLUSIVO desta lista.
+    // Última conferência: Edital 01/2026 (versão final - Adriana), 24/08/2026.
+    // ═══════════════════════════════════════════════════════════════════
     private static List<Ingrediente> SeedIngredientes()
     {
         var list = new List<Ingrediente>();
@@ -50,83 +57,104 @@ public class AppDbContext : DbContext
         void Add(string nome, string cat, bool inNatura, string unidade) =>
             list.Add(new Ingrediente { Id = id++, Nome = nome, Categoria = cat, IsInNatura = inNatura, UnidadeMedida = unidade });
 
-        // Grãos e Cereais
-        Add("Arroz Branco Tipo 1", "Grãos e Cereais", false, "kg");
-        Add("Feijão Carioca Tipo 1", "Grãos e Cereais", false, "kg");
-        Add("Feijão Preto Tipo 1", "Grãos e Cereais", false, "kg");
-        Add("Milho Verde (grão)", "Grãos e Cereais", true, "kg");
-        Add("Fubá de Milho", "Grãos e Cereais", false, "kg");
-        Add("Macarrão Espaguete", "Grãos e Cereais", false, "kg");
-        Add("Farinha de Mandioca", "Grãos e Cereais", false, "kg");
-        Add("Farinha de Trigo", "Grãos e Cereais", false, "kg");
+        // Frutas
+        Add("Abacaxi", "Frutas", true, "kg");
+        Add("Banana prata", "Frutas", true, "kg");
+        Add("Caqui", "Frutas", true, "kg");
+        Add("Laranja pera", "Frutas", true, "kg");
+        Add("Laranja seleta", "Frutas", true, "kg");
+        Add("Limão casca fina", "Frutas", true, "kg");
+        Add("Maçã nacional", "Frutas", true, "kg");
+        Add("Mamão Comum", "Frutas", true, "kg");
+        Add("Manga Espada", "Frutas", true, "kg");
+        Add("Melancia", "Frutas", true, "kg");
+        Add("Melão", "Frutas", true, "kg");
+        Add("Pera Portuguesa", "Frutas", true, "kg");
+        Add("Tangerina ponkan", "Frutas", true, "kg");
+
+        // Legumes e Verduras
+        Add("Abóbora Pescoço", "Legumes e Verduras", true, "kg");
+        Add("Abobrinha Alongada", "Legumes e Verduras", true, "kg");
+        Add("Agrião", "Legumes e Verduras", true, "kg");
+        Add("Aipim", "Legumes e Verduras", true, "kg");
+        Add("Alface Crespa", "Legumes e Verduras", true, "kg");
+        Add("Alho, branco ou roxo", "Legumes e Verduras", true, "kg");
+        Add("Batata doce", "Legumes e Verduras", true, "kg");
+        Add("Batata inglesa", "Legumes e Verduras", true, "kg");
+        Add("Beterraba, sem rama", "Legumes e Verduras", true, "kg");
+        Add("Cebola", "Legumes e Verduras", true, "kg");
+        Add("Cenoura", "Legumes e Verduras", true, "kg");
+        Add("Chuchu", "Legumes e Verduras", true, "kg");
+        Add("Couve-flor, sem rama", "Legumes e Verduras", true, "kg");
+        Add("Couve comum", "Legumes e Verduras", true, "kg");
+        Add("Espinafre", "Legumes e Verduras", true, "kg");
+        Add("Inhame", "Legumes e Verduras", true, "kg");
+        Add("Pepino", "Legumes e Verduras", true, "kg");
+        Add("Pimentão verde", "Legumes e Verduras", true, "kg");
+        Add("Quiabo", "Legumes e Verduras", true, "kg");
+        Add("Repolho Branco", "Legumes e Verduras", true, "kg");
+        Add("Tomate", "Legumes e Verduras", true, "kg");
+        Add("Vagem manteiga", "Legumes e Verduras", true, "kg");
+
+        // Temperos e Ervas
+        Add("Alecrim", "Temperos e Ervas", true, "kg");
+        Add("Cheiro verde (composto por salsa e cebolinha)", "Temperos e Ervas", true, "kg");
+        Add("Coentro", "Temperos e Ervas", true, "kg");
+        Add("Hortelã em folhas", "Temperos e Ervas", true, "kg");
+        Add("Louro", "Temperos e Ervas", true, "kg");
+        Add("Manjericão", "Temperos e Ervas", true, "kg");
+        Add("Orégano 3g", "Temperos e Ervas", true, "unid");
 
         // Proteínas Animais
-        Add("Frango Inteiro Congelado", "Proteínas Animais", false, "kg");
-        Add("Sobrecoxa de Frango", "Proteínas Animais", false, "kg");
-        Add("Carne Bovina Moída (patinho)", "Proteínas Animais", false, "kg");
-        Add("Linguiça de Frango", "Proteínas Animais", false, "kg");
-        Add("Ovo de Galinha", "Proteínas Animais", true, "dúzia");
-        Add("Peixe (filé de tilápia)", "Proteínas Animais", false, "kg");
-        Add("Sardinha em Conserva", "Proteínas Animais", false, "lata");
+        Add("Carne Bovina, Coxão Mole (Chã)", "Proteínas Animais", true, "kg");
+        Add("Carne Bovina, Patinho", "Proteínas Animais", true, "kg");
+        Add("Carne de Frango, Filé de Peito", "Proteínas Animais", true, "kg");
+        Add("Fígado de Bovino, Congelado", "Proteínas Animais", true, "kg");
+        Add("Ovo de Galinha, Branco", "Proteínas Animais", true, "dz");
+        Add("Peixe - Filé de pescada congelado", "Proteínas Animais", true, "kg");
 
-        // Hortaliças e Verduras (In Natura)
-        Add("Alface", "Hortaliças", true, "unidade");
-        Add("Tomate", "Hortaliças", true, "kg");
-        Add("Cebola", "Hortaliças", true, "kg");
-        Add("Alho", "Hortaliças", true, "kg");
-        Add("Cenoura", "Hortaliças", true, "kg");
-        Add("Beterraba", "Hortaliças", true, "kg");
-        Add("Couve-Flor", "Hortaliças", true, "unidade");
-        Add("Brócolis", "Hortaliças", true, "kg");
-        Add("Chuchu", "Hortaliças", true, "kg");
-        Add("Abóbora", "Hortaliças", true, "kg");
-        Add("Batata-Doce", "Hortaliças", true, "kg");
-        Add("Mandioca / Aipim", "Hortaliças", true, "kg");
-        Add("Quiabo", "Hortaliças", true, "kg");
-        Add("Jiló", "Hortaliças", true, "kg");
-        Add("Berinjela", "Hortaliças", true, "kg");
-        Add("Pimentão Verde", "Hortaliças", true, "unidade");
-        Add("Espinafre", "Hortaliças", true, "maço");
-        Add("Coentro", "Hortaliças", true, "maço");
-        Add("Cheiro-Verde (Salsa e Cebolinha)", "Hortaliças", true, "maço");
+        // Grãos, Cereais e Massas
+        Add("Arroz Parboilizado", "Grãos, Cereais e Massas", true, "kg");
+        Add("Farinha de Mandioca, Tipo I, torrada, Fina", "Grãos, Cereais e Massas", true, "kg");
+        Add("Farinha de Trigo", "Grãos, Cereais e Massas", true, "kg");
+        Add("Feijão Branco 500g", "Grãos, Cereais e Massas", true, "pct");
+        Add("Feijão Carioca 1Kg", "Grãos, Cereais e Massas", true, "kg");
+        Add("Feijão Fradinho 500g", "Grãos, Cereais e Massas", true, "pct");
+        Add("Feijão Preto", "Grãos, Cereais e Massas", true, "kg");
+        Add("Fubá de Milho 1Kg", "Grãos, Cereais e Massas", true, "kg");
+        Add("Lentilha - 500g", "Grãos, Cereais e Massas", true, "pct");
+        Add("Macarrão p/ sopa parafuso COM OVOS - 500g", "Grãos, Cereais e Massas", false, "pct");
+        Add("Macarrão espagueti COM OVOS - 500g", "Grãos, Cereais e Massas", false, "pct");
+        Add("Macarrão talharim COM OVOS - 500g", "Grãos, Cereais e Massas", false, "pct");
+        Add("Trigo para Quibe", "Grãos, Cereais e Massas", false, "pct");
 
-        // Frutas (In Natura)
-        Add("Banana Prata", "Frutas", true, "kg");
-        Add("Laranja Pera", "Frutas", true, "kg");
-        Add("Mamão Formosa", "Frutas", true, "kg");
-        Add("Maçã Gala", "Frutas", true, "kg");
-        Add("Limão Taiti", "Frutas", true, "kg");
-        Add("Abacaxi", "Frutas", true, "unidade");
-        Add("Maracujá", "Frutas", true, "kg");
-        Add("Goiaba", "Frutas", true, "kg");
+        // Laticínios
+        Add("Creme de Leite 200g", "Laticínios", false, "unid");
+        Add("Leite de Coco, Concentrado 200ml", "Laticínios", false, "unid");
+        Add("Leite Integral; Embalagem 1 litro", "Laticínios", true, "litro");
+        Add("Queijo Muçarela", "Laticínios", false, "kg");
 
-        // Laticínios e Derivados
-        Add("Leite UHT Integral", "Laticínios", false, "litro");
-        Add("Queijo Mussarela Fatiado", "Laticínios", false, "kg");
-        Add("Queijo Prato", "Laticínios", false, "kg");
-        Add("Iogurte Natural", "Laticínios", false, "kg");
-        Add("Manteiga com Sal", "Laticínios", false, "kg");
+        // Óleos, Condimentos e Mercearia
+        Add("Azeite de Oliva 500ml", "Óleos, Condimentos e Mercearia", false, "unid");
+        Add("Extrato de Tomate Sachê - 340g", "Óleos, Condimentos e Mercearia", false, "unid");
+        Add("Fermento Químico 100g", "Óleos, Condimentos e Mercearia", false, "unid");
+        Add("Margarina Vegetal 500g", "Óleos, Condimentos e Mercearia", false, "unid");
+        Add("Óleo de Soja; Refinado; Embal. 900ml", "Óleos, Condimentos e Mercearia", false, "unid");
+        Add("Sal, Iodado, Refinado", "Óleos, Condimentos e Mercearia", false, "kg");
+        Add("Vinagre de Álcool - 750ml (branco ou colorido)", "Óleos, Condimentos e Mercearia", false, "unid");
 
-        // Temperos e Condimentos
-        Add("Óleo de Soja", "Temperos e Condimentos", false, "litro");
-        Add("Azeite de Oliva Extra Virgem", "Temperos e Condimentos", false, "litro");
-        Add("Sal Refinado", "Temperos e Condimentos", false, "kg");
-        Add("Açúcar Cristal", "Temperos e Condimentos", false, "kg");
-        Add("Vinagre de Álcool", "Temperos e Condimentos", false, "litro");
-        Add("Extrato de Tomate", "Temperos e Condimentos", false, "lata");
-        Add("Molho de Pimenta", "Temperos e Condimentos", false, "frasco");
-        Add("Louro (folha)", "Temperos e Condimentos", true, "maço");
-        Add("Pimenta-do-Reino Preta (pó)", "Temperos e Condimentos", false, "g");
-        Add("Cominho (pó)", "Temperos e Condimentos", false, "g");
-        Add("Páprica Defumada", "Temperos e Condimentos", false, "g");
-        Add("Açafrão da Terra (cúrcuma)", "Temperos e Condimentos", false, "g");
-        Add("Canela em Pó", "Temperos e Condimentos", false, "g");
+        // Conservas e Enlatados
+        Add("Atum em lata com 170g easy off sólido", "Conservas e Enlatados", false, "unid");
+        Add("Azeitona Verde 500g", "Conservas e Enlatados", false, "unid");
+        Add("Ervilha em conserva lata - 170g", "Conservas e Enlatados", false, "unid");
+        Add("Milho verde conserva lata - 170g", "Conservas e Enlatados", false, "unid");
 
-        // Leguminosas
-        Add("Lentilha", "Leguminosas", false, "kg");
-        Add("Grão-de-Bico", "Leguminosas", false, "kg");
-        Add("Ervilha em Conserva", "Leguminosas", false, "lata");
-        Add("Milho Verde em Conserva", "Leguminosas", false, "lata");
+        // Doces e Sobremesas
+        Add("Doce de leite tradicional – embalagem de 5 kg", "Doces e Sobremesas", false, "unid");
+        Add("Doce goiabada - Embalagem com 7kg", "Doces e Sobremesas", false, "unid");
+
+        // Processados
+        Add("Batata Frita Palha 1Kg", "Processados", false, "pct");
 
         return list;
     }

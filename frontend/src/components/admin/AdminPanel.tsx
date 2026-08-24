@@ -475,10 +475,10 @@ export function AdminPanel() {
                       </p>
                     </div>
                   )}
-                  {selected.receita.comprovante && (
+                  {selected.candidato.comprovante && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 mb-1">Comprovante de Vínculo</p>
-                      <button onClick={() => abrirArquivo(selected.receita.comprovante!)}
+                      <button onClick={() => abrirArquivo(selected.candidato.comprovante!)}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition">
                         📄 Visualizar Comprovante
                       </button>

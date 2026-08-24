@@ -30,25 +30,26 @@ public class InscricoesController : ControllerBase
         var candidato = await _db.Candidatos.FindAsync(userId);
         if (candidato == null) return Unauthorized();
 
-        if (await _db.Inscricoes.AnyAsync(i => i.CandidatoId == userId))
-            return Conflict(new { error = "Você já possui uma inscrição. Use o botão de editar." });
+        // Edital, item 4.9: "Cada PARTICIPANTE poderá enviar quantas receitas desejar."
+        // (removido o bloqueio de inscrição única — múltiplas receitas por participante são permitidas)
+
+        // Dados funcionais + comprovante são preenchidos uma única vez, via /api/candidatos/perfil
+        // — não são mais reenviados a cada receita.
+        if (!candidato.CadastroCompleto)
+            return BadRequest(new { error = "Complete seu cadastro (dados funcionais e comprovante de vínculo) antes de enviar uma receita.", cadastroIncompleto = true });
+
+        if (!TiposReceitaValidos.Contains(dto.TipoReceita))
+            return BadRequest(new { error = "Selecione o tipo da receita: Prato Principal, Acompanhamento ou ambos (Edital, item 4.5)." });
+
+        if (!dto.AceitouLgpd || !dto.AutorizouUsoImagem || !dto.AceitouTermosUso || !dto.DeclarouSemParentesco)
+            return BadRequest(new { error = "É necessário aceitar todos os termos (LGPD, uso de imagem, termos de uso e declaração de ausência de parentesco) para concluir a inscrição." });
 
         // Verifica prazo
         var config = await _db.Configuracoes.FirstOrDefaultAsync();
         if (config?.PrazoEdicaoInscricao.HasValue == true && DateTime.UtcNow > config.PrazoEdicaoInscricao.Value)
             return BadRequest(new { error = "O prazo para inscrições encerrou." });
 
-        // Atualiza dados do candidato se fornecidos
-        if (!string.IsNullOrEmpty(dto.UnidadeEscolar)) candidato.UnidadeEscolar = dto.UnidadeEscolar;
-        if (!string.IsNullOrEmpty(dto.NomeDiretor)) candidato.NomeDiretor = dto.NomeDiretor;
-        if (!string.IsNullOrEmpty(dto.Matricula)) candidato.Matricula = dto.Matricula;
-        if (!string.IsNullOrEmpty(dto.Cargo)) candidato.Cargo = dto.Cargo;
-        if (!string.IsNullOrEmpty(dto.Telefone)) candidato.Telefone = dto.Telefone;
         candidato.AceitouTermosUso = dto.AceitouTermosUso;
-
-        string? comprovanteNome = dto.ComprovanteVinculo != null
-            ? await SalvarArquivo(dto.ComprovanteVinculo, userId)
-            : null;
 
         string? fotoNome = dto.FotoReceita != null
             ? await SalvarArquivo(dto.FotoReceita, userId)
@@ -58,12 +59,13 @@ public class InscricoesController : ControllerBase
         {
             CandidatoId = userId,
             NomeReceita = dto.NomeReceita ?? string.Empty,
+            TipoReceita = dto.TipoReceita,
             Descricao = dto.Descricao ?? string.Empty,
             ModoPreparo = dto.ModoPreparo ?? string.Empty,
-            ComprovanteVinculo = comprovanteNome ?? string.Empty,
             FotoReceita = fotoNome,
             AceitouLgpd = dto.AceitouLgpd,
             AutorizouUsoImagem = dto.AutorizouUsoImagem,
+            DeclarouSemParentesco = dto.DeclarouSemParentesco,
             Status = StatusInscricao.Pendente,
             Ingredientes = dto.Ingredientes.Select(i => new InscricaoIngrediente
             {
@@ -98,10 +100,10 @@ public class InscricoesController : ControllerBase
         return Ok(new { id = inscricao.Id, hash, message = "Inscrição salva com sucesso!" });
     }
 
-    [HttpPut("minha")]
+    [HttpPut("{id:guid}")]
     [Authorize(Roles = "Candidato")]
     [RequestSizeLimit(20_000_000)]
-    public async Task<IActionResult> AtualizarInscricao([FromForm] InscricaoFormDto dto)
+    public async Task<IActionResult> AtualizarInscricao(Guid id, [FromForm] InscricaoFormDto dto)
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -112,32 +114,32 @@ public class InscricoesController : ControllerBase
 
         var inscricao = await _db.Inscricoes
             .Include(i => i.Ingredientes)
-            .FirstOrDefaultAsync(i => i.CandidatoId == userId);
+            .FirstOrDefaultAsync(i => i.Id == id && i.CandidatoId == userId);
 
+        // Não revela se o id existe e pertence a outro candidato — sempre 404 nesse caso
         if (inscricao == null) return NotFound(new { error = "Inscrição não encontrada." });
 
         var candidato = await _db.Candidatos.FindAsync(userId);
         if (candidato == null) return Unauthorized();
 
-        // Atualiza dados do candidato
-        if (!string.IsNullOrEmpty(dto.UnidadeEscolar)) candidato.UnidadeEscolar = dto.UnidadeEscolar;
-        if (!string.IsNullOrEmpty(dto.NomeDiretor)) candidato.NomeDiretor = dto.NomeDiretor;
-        if (!string.IsNullOrEmpty(dto.Matricula)) candidato.Matricula = dto.Matricula;
-        if (!string.IsNullOrEmpty(dto.Cargo)) candidato.Cargo = dto.Cargo;
-        if (!string.IsNullOrEmpty(dto.Telefone)) candidato.Telefone = dto.Telefone;
-        candidato.AceitouTermosUso = dto.AceitouTermosUso;
+        if (!dto.AceitouLgpd || !dto.AutorizouUsoImagem || !dto.AceitouTermosUso || !dto.DeclarouSemParentesco)
+            return BadRequest(new { error = "É necessário manter todos os termos aceitos (LGPD, uso de imagem, termos de uso e declaração de ausência de parentesco) para salvar a inscrição." });
 
         // Atualiza receita
         if (!string.IsNullOrEmpty(dto.NomeReceita)) inscricao.NomeReceita = dto.NomeReceita;
+        if (!string.IsNullOrEmpty(dto.TipoReceita))
+        {
+            if (!TiposReceitaValidos.Contains(dto.TipoReceita))
+                return BadRequest(new { error = "Selecione o tipo da receita: Prato Principal, Acompanhamento ou ambos (Edital, item 4.5)." });
+            inscricao.TipoReceita = dto.TipoReceita;
+        }
         if (!string.IsNullOrEmpty(dto.Descricao)) inscricao.Descricao = dto.Descricao;
         if (!string.IsNullOrEmpty(dto.ModoPreparo)) inscricao.ModoPreparo = dto.ModoPreparo;
         inscricao.AceitouLgpd = dto.AceitouLgpd;
         inscricao.AutorizouUsoImagem = dto.AutorizouUsoImagem;
+        inscricao.DeclarouSemParentesco = dto.DeclarouSemParentesco;
 
-        // Atualiza arquivos se enviados
-        if (dto.ComprovanteVinculo != null)
-            inscricao.ComprovanteVinculo = await SalvarArquivo(dto.ComprovanteVinculo, userId) ?? inscricao.ComprovanteVinculo;
-
+        // Atualiza foto se enviada
         if (dto.FotoReceita != null)
             inscricao.FotoReceita = await SalvarArquivo(dto.FotoReceita, userId);
 
@@ -159,57 +161,68 @@ public class InscricoesController : ControllerBase
         return Ok(new { message = "Inscrição atualizada com sucesso!" });
     }
 
-    [HttpGet("minha")]
+    [HttpGet("minhas")]
     [Authorize(Roles = "Candidato")]
-    public async Task<IActionResult> MinhaInscricao()
+    public async Task<IActionResult> MinhasInscricoes()
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var inscricao = await _db.Inscricoes
+        var inscricoes = await _db.Inscricoes
             .Include(i => i.Candidato)
             .Include(i => i.Ingredientes).ThenInclude(ii => ii.Ingrediente)
-            .FirstOrDefaultAsync(i => i.CandidatoId == userId);
+            .Where(i => i.CandidatoId == userId)
+            .OrderByDescending(i => i.CriadaEm)
+            .ToListAsync();
 
-        if (inscricao == null) return NotFound(new { error = "Nenhuma inscrição encontrada." });
-
-        var c = inscricao.Candidato;
         var config = await _db.Configuracoes.FirstOrDefaultAsync();
         var prazoExpirado = config?.PrazoEdicaoInscricao.HasValue == true
             && DateTime.UtcNow > config.PrazoEdicaoInscricao.Value;
 
-        return Ok(new {
-            id = inscricao.Id,
-            candidato = new {
-                nome = c.Nome,
-                cpf = c.Cpf.Length == 11 ? $"{c.Cpf[..3]}.{c.Cpf[3..6]}.{c.Cpf[6..9]}-{c.Cpf[9..]}" : c.Cpf,
-                email = c.Email,
-                telefone = c.Telefone,
-                unidadeEscolar = c.UnidadeEscolar,
-                nomeDiretor = c.NomeDiretor,
-                matricula = c.Matricula,
-                cargo = c.Cargo
-            },
-            nomeReceita = inscricao.NomeReceita,
-            descricao = inscricao.Descricao,
-            modoPreparo = inscricao.ModoPreparo,
-            fotoReceita = inscricao.FotoReceita,
-            comprovanteVinculo = inscricao.ComprovanteVinculo,
-            hashInscricao = inscricao.HashInscricao,
-            dataConfirmacao = inscricao.DataConfirmacao,
-            status = inscricao.Status.ToString(),
-            motivoEliminacao = inscricao.MotivoEliminacao,
-            dataSegundaFase = inscricao.DataSegundaFase,
-            localSegundaFase = inscricao.LocalSegundaFase,
-            convocadoEm = inscricao.ConvocadoEm,
-            ingredientes = inscricao.Ingredientes.Select(ii => new {
-                ii.Ingrediente.Id,
-                ii.Ingrediente.Nome,
-                ii.Ingrediente.IsInNatura,
-                ii.Quantidade
-            }),
-            criadaEm = inscricao.CriadaEm,
-            podeEditar = !prazoExpirado,
-            prazoEdicao = config?.PrazoEdicaoInscricao
+        var resultado = inscricoes.Select(inscricao =>
+        {
+            var c = inscricao.Candidato;
+            return new
+            {
+                id = inscricao.Id,
+                candidato = new {
+                    nome = c.Nome,
+                    cpf = c.Cpf.Length == 11 ? $"{c.Cpf[..3]}.{c.Cpf[3..6]}.{c.Cpf[6..9]}-{c.Cpf[9..]}" : c.Cpf,
+                    email = c.Email,
+                    telefone = c.Telefone,
+                    unidadeEscolar = c.UnidadeEscolar,
+                    nomeDiretor = c.NomeDiretor,
+                    matricula = c.Matricula,
+                    cargo = c.Cargo,
+                    comprovanteVinculo = c.ComprovanteVinculo
+                },
+                nomeReceita = inscricao.NomeReceita,
+                tipoReceita = inscricao.TipoReceita,
+                descricao = inscricao.Descricao,
+                modoPreparo = inscricao.ModoPreparo,
+                fotoReceita = inscricao.FotoReceita,
+                aceitouLgpd = inscricao.AceitouLgpd,
+                autorizouUsoImagem = inscricao.AutorizouUsoImagem,
+                aceitouTermosUso = c.AceitouTermosUso,
+                declarouSemParentesco = inscricao.DeclarouSemParentesco,
+                hashInscricao = inscricao.HashInscricao,
+                dataConfirmacao = inscricao.DataConfirmacao,
+                status = inscricao.Status.ToString(),
+                motivoEliminacao = inscricao.MotivoEliminacao,
+                dataSegundaFase = inscricao.DataSegundaFase,
+                localSegundaFase = inscricao.LocalSegundaFase,
+                convocadoEm = inscricao.ConvocadoEm,
+                ingredientes = inscricao.Ingredientes.Select(ii => new {
+                    ii.Ingrediente.Id,
+                    ii.Ingrediente.Nome,
+                    ii.Ingrediente.IsInNatura,
+                    ii.Quantidade
+                }),
+                criadaEm = inscricao.CriadaEm,
+                podeEditar = !prazoExpirado,
+                prazoEdicao = config?.PrazoEdicaoInscricao
+            };
         });
+
+        return Ok(resultado);
     }
 
     [HttpGet("ingredientes")]
@@ -242,6 +255,13 @@ public class InscricoesController : ControllerBase
         return Ok(inscricoes);
     }
 
+    // Edital, item 4.5: "receitas que se caracterizem como preparação culinária apta
+    // ao contexto da alimentação escolar, abrangendo prato principal e/ou acompanhamento"
+    private static readonly HashSet<string> TiposReceitaValidos = new()
+    {
+        "PratoPrincipal", "Acompanhamento", "PratoPrincipalEAcompanhamento"
+    };
+
     private async Task<string?> SalvarArquivo(IFormFile? file, Guid userId)
     {
         if (file == null) return null;
@@ -262,13 +282,8 @@ public class InscricoesController : ControllerBase
 
 public class InscricaoFormDto
 {
-    public string? UnidadeEscolar { get; set; }
-    public string? NomeDiretor { get; set; }
-    public string? Matricula { get; set; }
-    public string? Cargo { get; set; }
-    public string? Telefone { get; set; }
-    public IFormFile? ComprovanteVinculo { get; set; }
     public string? NomeReceita { get; set; }
+    public string TipoReceita { get; set; } = string.Empty;
     public string? Descricao { get; set; }
     public string? ModoPreparo { get; set; }
     public IFormFile? FotoReceita { get; set; }
@@ -276,6 +291,7 @@ public class InscricaoFormDto
     public bool AceitouLgpd { get; set; }
     public bool AutorizouUsoImagem { get; set; }
     public bool AceitouTermosUso { get; set; }
+    public bool DeclarouSemParentesco { get; set; }
 }
 
 public class IngredienteItemDto

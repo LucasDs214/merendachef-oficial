@@ -42,6 +42,7 @@ services:
       AllowedOrigins__0: https://merendachef.faetec.rj.gov.br
       AllowedOrigins__1: http://10.11.134.82:3100
       AllowedOrigins__2: http://localhost:3100
+      
     ports:
       - "8181:8080"
     depends_on:

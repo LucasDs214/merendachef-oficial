@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace MerendaChef.Api.Models;
 
 public class Candidato
@@ -13,9 +15,21 @@ public class Candidato
     public string Matricula { get; set; } = string.Empty;
     public string Cargo { get; set; } = string.Empty;
     public string Telefone { get; set; } = string.Empty;        // novo
+    public string ComprovanteVinculo { get; set; } = string.Empty;  // movido de Inscricao — pertence ao candidato, não à receita
     public bool AceitouTermosUso { get; set; }                  // novo
     public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
-    public Inscricao? Inscricao { get; set; }
+    public ICollection<Inscricao> Inscricoes { get; set; } = new List<Inscricao>();  // 1:N — Edital, item 4.9: "quantas receitas desejar"
+
+    // Cadastro considerado completo quando os dados funcionais + comprovante foram preenchidos.
+    // Usado para exigir esse preenchimento uma única vez, antes da 1ª receita.
+    [NotMapped]
+    public bool CadastroCompleto =>
+        !string.IsNullOrWhiteSpace(UnidadeEscolar) &&
+        !string.IsNullOrWhiteSpace(NomeDiretor) &&
+        !string.IsNullOrWhiteSpace(Matricula) &&
+        !string.IsNullOrWhiteSpace(Cargo) &&
+        !string.IsNullOrWhiteSpace(Telefone) &&
+        !string.IsNullOrWhiteSpace(ComprovanteVinculo);
 }
 
 public class Inscricao
@@ -25,13 +39,14 @@ public class Inscricao
     public Candidato Candidato { get; set; } = null!;
 
     public string NomeReceita { get; set; } = string.Empty;
+    public string TipoReceita { get; set; } = string.Empty;     // novo — "PratoPrincipal" | "Acompanhamento" | "PratoPrincipalEAcompanhamento" (Edital, item 4.5)
     public string Descricao { get; set; } = string.Empty;
     public string ModoPreparo { get; set; } = string.Empty;     // novo
     public string? FotoReceita { get; set; }
-    public string ComprovanteVinculo { get; set; } = string.Empty;
 
     public bool AceitouLgpd { get; set; }
     public bool AutorizouUsoImagem { get; set; }
+    public bool DeclarouSemParentesco { get; set; }             // novo — Edital, item 9.11
 
     public StatusInscricao Status { get; set; } = StatusInscricao.Pendente;
     public string? MotivoEliminacao { get; set; }

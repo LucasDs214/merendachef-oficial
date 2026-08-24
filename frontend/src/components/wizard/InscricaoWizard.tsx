@@ -1,26 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { inscricaoApi } from '../../utils/api';
-import { maskTelefone } from '../../utils/masks';
-import type { WizardData, Ingrediente } from '../../types';
+import type { WizardData, Ingrediente, TipoReceita } from '../../types';
+import { TIPO_RECEITA_LABEL } from '../../types';
 
-const STEPS = ['Dados Funcionais', 'Documentação', 'Ingredientes', 'Receita', 'Termos'];
-
-const UNIDADES_FAETEC = [
-  'ETE João Luiz do Nascimento',
-  'ETE Juscelino Kubistschek',
-  'Creche Casa da Criança',
-  'ETE República',
-  'Escola Especial Favo de Mel',
-  'Iserj',
-  'ETE Ferreira Viana',
-  'ETE Imbariê',
-  'Marechal Hermes Cozinha Central',
-  'ETE Santa Cruz',
-  'Fundamental República',
-  'Henrique Lage - Barreto',
-  'ETE Adolpho Bloch',
-];
+const STEPS = ['Ingredientes', 'Receita', 'Termos'];
 
 const TERMOS_TEXTO = `TERMOS DE USO E POLÍTICA DE PRIVACIDADE
 Concurso Culinário MerendaChef — FAETEC 2026
@@ -34,39 +18,38 @@ Os dados pessoais coletados (nome, CPF, e-mail, telefone, matrícula) serão uti
 3. USO PARA PESQUISA CIENTÍFICA
 Ao aceitar este termo, o participante autoriza o uso anonimizado de seus dados e da receita submetida para fins de pesquisa científica, estudos nutricionais e publicações institucionais da FAETEC, garantindo-se a privacidade do indivíduo.
 
-4. USO DE IMAGEM
-O participante autoriza a FAETEC a utilizar sua imagem, nome e receita para divulgação institucional nos canais oficiais da rede, sem ônus.
+4. USO DE IMAGEM, VOZ E CESSÃO DE DIREITOS AUTORAIS
+No ato da adesão ao Concurso e anuência a este Edital, o participante autoriza gratuitamente, em caráter exclusivo, irrevogável, irretratável, definitivo e universal, a divulgação de seu nome, imagem e voz e do material enviado (receita/prato) e imagem (foto e/ou vídeo) no site do Concurso, autorizando também a ORGANIZADORA (FAETEC) ou qualquer parceiro a utilizar a receita inscrita, imagem e voz em quaisquer obras ou mídias por ela produzidas. Essas utilizações não têm limitação de tempo ou de número de vezes, podendo ocorrer no Brasil e/ou no exterior, sem que seja devida qualquer remuneração ou compensação ao participante. O participante cede expressamente os direitos autorais patrimoniais e de imagem relativos aos materiais produzidos em decorrência de sua participação, na forma do art. 93 da Lei nº 14.133/2021 e observado o disposto nos artigos 49 e 50 da Lei nº 9.610/1998. Esta autorização entra em vigor no ato da inscrição e perdura pelos prazos de proteção legal da obra previstos na Lei nº 9.610/1998.
 
-5. ARMAZENAMENTO
+5. VEDAÇÃO DE PARENTESCO
+Não poderão participar do Concurso os cônjuges, ascendentes, descendentes e parentes até o 2º grau dos colaboradores/funcionários da ORGANIZADORA e dos membros das Comissões Julgadoras. O participante declara, sob as penas da lei, que não se enquadra em nenhuma dessas hipóteses.
+
+6. ARMAZENAMENTO
 Os dados serão armazenados de forma segura pelo período necessário à realização do concurso e por até 5 anos para fins de auditoria, conforme exige a legislação vigente.
 
-6. DIREITOS DO TITULAR
+7. DIREITOS DO TITULAR
 O participante poderá solicitar acesso, correção ou exclusão de seus dados a qualquer momento, mediante contato com a FAETEC.
 
-7. CONTATO
-Para dúvidas: merendachef@faetec.rj.gov.br`;
+8. CONTATO
+Para dúvidas: merenda.chef@faetec.rj.gov.br`;
 
 interface Props {
   ingredientes: Ingrediente[];
   modoEdicao?: boolean;
+  inscricaoId?: string;
   dadosIniciais?: Partial<WizardData>;
   onSucesso?: () => void;
 }
 
-export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciais, onSucesso }: Props) {
+export function InscricaoWizard({ ingredientes, modoEdicao = false, inscricaoId, dadosIniciais, onSucesso }: Props) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [modalTermos, setModalTermos] = useState(false);
   const [data, setData] = useState<WizardData>({
-    unidadeEscolar: dadosIniciais?.unidadeEscolar || '',
-    nomeDiretor: dadosIniciais?.nomeDiretor || '',
-    matricula: dadosIniciais?.matricula || '',
-    cargo: dadosIniciais?.cargo || '',
-    telefone: dadosIniciais?.telefone || '',
-    comprovanteVinculo: null,
     nomeReceita: dadosIniciais?.nomeReceita || '',
+    tipoReceita: dadosIniciais?.tipoReceita || '',
     descricao: dadosIniciais?.descricao || '',
     modoPreparo: dadosIniciais?.modoPreparo || '',
     fotoReceita: null,
@@ -74,30 +57,45 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
     aceitouLgpd: dadosIniciais?.aceitouLgpd || false,
     autorizouUsoImagem: dadosIniciais?.autorizouUsoImagem || false,
     aceitouTermosUso: dadosIniciais?.aceitouTermosUso || false,
+    declarouSemParentesco: dadosIniciais?.declarouSemParentesco || false,
   });
 
   const update = (field: keyof WizardData, value: unknown) =>
     setData(prev => ({ ...prev, [field]: value }));
 
-  const nextStep = () => { setError(''); setStep(s => s + 1); };
+  const nextStep = () => {
+    setError('');
+    // Edital, item 4.5: a receita precisa ser classificada como prato principal e/ou acompanhamento
+    if (step === 1 && !data.tipoReceita) {
+      setError('Selecione o tipo da receita (Prato Principal e/ou Acompanhamento) antes de continuar.');
+      return;
+    }
+    setStep(s => s + 1);
+  };
   const prevStep = () => { setError(''); setStep(s => s - 1); };
 
   const handleSubmit = async () => {
-    setLoading(true); setError('');
+    setError('');
+    // Edital, itens 4.7, 9.3, 9.4 e 9.11: sem esses aceites a inscrição não é válida
+    if (!data.tipoReceita) {
+      setError('Selecione o tipo da receita antes de enviar.');
+      return;
+    }
+    if (!data.aceitouLgpd || !data.autorizouUsoImagem || !data.aceitouTermosUso || !data.declarouSemParentesco) {
+      setError('É necessário marcar todas as declarações da etapa "Termos" para enviar a inscrição.');
+      return;
+    }
+    setLoading(true);
     try {
       const formData = new FormData();
-      if (data.unidadeEscolar) formData.append('unidadeEscolar', data.unidadeEscolar);
-      if (data.nomeDiretor) formData.append('nomeDiretor', data.nomeDiretor);
-      if (data.matricula) formData.append('matricula', data.matricula);
-      if (data.cargo) formData.append('cargo', data.cargo);
-      if (data.telefone) formData.append('telefone', data.telefone);
       if (data.nomeReceita) formData.append('nomeReceita', data.nomeReceita);
+      formData.append('tipoReceita', data.tipoReceita);
       if (data.descricao) formData.append('descricao', data.descricao);
       if (data.modoPreparo) formData.append('modoPreparo', data.modoPreparo);
       formData.append('aceitouLgpd', String(data.aceitouLgpd));
       formData.append('autorizouUsoImagem', String(data.autorizouUsoImagem));
       formData.append('aceitouTermosUso', String(data.aceitouTermosUso));
-      if (data.comprovanteVinculo) formData.append('comprovanteVinculo', data.comprovanteVinculo);
+      formData.append('declarouSemParentesco', String(data.declarouSemParentesco));
       if (data.fotoReceita) formData.append('fotoReceita', data.fotoReceita);
       data.ingredientes.forEach((ing, index) => {
         formData.append(`Ingredientes[${index}].Id`, String(ing.id));
@@ -105,7 +103,8 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
       });
 
       if (modoEdicao) {
-        await inscricaoApi.atualizar(formData);
+        if (!inscricaoId) throw new Error('ID da inscrição não informado para edição.');
+        await inscricaoApi.atualizar(inscricaoId, formData);
       } else {
         await inscricaoApi.enviar(formData);
       }
@@ -116,7 +115,11 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
         navigate('/minha-inscricao');
       }
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
+      const err = e as { response?: { data?: { error?: string; cadastroIncompleto?: boolean } } };
+      if (err.response?.data?.cadastroIncompleto) {
+        navigate('/completar-cadastro');
+        return;
+      }
       setError(err.response?.data?.error || 'Erro ao salvar inscrição.');
     } finally { setLoading(false); }
   };
@@ -161,9 +164,7 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
       </div>
 
       <div className="bg-white rounded-2xl shadow-lg p-6 border border-orange-100">
-        {step === 0 && <StepDados data={data} update={update} />}
-        {step === 1 && <StepDocumentacao data={data} update={update} />}
-        {step === 2 && (
+        {step === 0 && (
           <StepIngredientes
             ingredientes={ingredientes}
             categorias={categorias}
@@ -172,8 +173,8 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
             updateQuantidade={updateQuantidade}
           />
         )}
-        {step === 3 && <StepReceita data={data} update={update} ingredientes={ingredientes} />}
-        {step === 4 && (
+        {step === 1 && <StepReceita data={data} update={update} ingredientes={ingredientes} />}
+        {step === 2 && (
           <StepTermos
             data={data}
             update={update}
@@ -202,7 +203,7 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
           ) : (
             <button onClick={handleSubmit} disabled={loading}
               className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition shadow disabled:opacity-50">
-              {loading ? 'Salvando...' : modoEdicao ? '💾 Salvar Alterações' : '🏆 Enviar Inscrição'}
+              {loading ? 'Salvando...' : modoEdicao ? '💾 Salvar Alterações' : '🏆 Enviar Receita'}
             </button>
           )}
         </div>
@@ -232,50 +233,7 @@ export function InscricaoWizard({ ingredientes, modoEdicao = false, dadosIniciai
   );
 }
 
-function StepDados({ data, update }: { data: WizardData; update: (k: keyof WizardData, v: unknown) => void }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-800">📋 Dados Funcionais</h2>
-      <p className="text-sm text-gray-500">Todos os campos são opcionais e podem ser preenchidos depois.</p>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Unidade Escolar (FAETEC)</label>
-        <select value={data.unidadeEscolar} onChange={e => update('unidadeEscolar', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none">
-          <option value="">Selecione...</option>
-          {UNIDADES_FAETEC.map(u => <option key={u} value={u}>{u}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Nome do(a) Diretor(a)</label>
-        <input type="text" placeholder="Nome completo do(a) diretor(a)"
-          value={data.nomeDiretor} onChange={e => update('nomeDiretor', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Matrícula do Funcionário</label>
-        <input type="text" placeholder="Ex: 12345678"
-          value={data.matricula} onChange={e => update('matricula', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Cargo</label>
-        <input type="text" placeholder="Ex: Merendeira, Auxiliar de Serviços..."
-          value={data.cargo} onChange={e => update('cargo', e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
-        <input type="text" placeholder="(21) 99999-9999"
-          value={data.telefone}
-          onChange={e => update('telefone', maskTelefone(e.target.value))}
-          maxLength={15}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
-      </div>
-    </div>
-  );
-}
-
-function FileDropzone({ label, accept, value, onChange, hint }: {
+export function FileDropzone({ label, accept, value, onChange, hint }: {
   label: string; accept: string; value: File | null;
   onChange: (f: File | null) => void; hint?: string;
 }) {
@@ -295,22 +253,6 @@ function FileDropzone({ label, accept, value, onChange, hint }: {
           </div>
         )}
       </label>
-    </div>
-  );
-}
-
-function StepDocumentacao({ data, update }: { data: WizardData; update: (k: keyof WizardData, v: unknown) => void }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-800">📄 Documentação</h2>
-      <p className="text-sm text-gray-600">Envie o documento que comprova seu vínculo funcional com a unidade FAETEC. Opcional — pode ser enviado depois.</p>
-      <FileDropzone
-        label="Comprovante de Vínculo Funcional"
-        accept=".pdf,.jpg,.jpeg,.png"
-        value={data.comprovanteVinculo}
-        onChange={f => update('comprovanteVinculo', f)}
-        hint="PDF, JPG ou PNG — máx. 10MB"
-      />
     </div>
   );
 }
@@ -424,6 +366,24 @@ function StepReceita({ data, update, ingredientes }: {
           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-400 outline-none" />
       </div>
       <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">
+          Tipo da Receita <span className="text-red-500">*</span>
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Conforme o Edital, a receita deve ser um prato principal e/ou acompanhamento apto à alimentação escolar.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {(Object.entries(TIPO_RECEITA_LABEL) as [TipoReceita, string][]).map(([value, label]) => (
+            <label key={value} className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer text-sm transition
+              ${data.tipoReceita === value ? 'border-orange-400 bg-orange-50 font-semibold text-orange-700' : 'border-gray-200 hover:border-orange-200 text-gray-700'}`}>
+              <input type="radio" name="tipoReceita" value={value} checked={data.tipoReceita === value}
+                onChange={() => update('tipoReceita', value)} className="accent-orange-500" />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
         <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição do Prato</label>
         <textarea rows={4} placeholder="Descreva seu prato, origem cultural, curiosidades..."
           value={data.descricao} onChange={e => update('descricao', e.target.value)}
@@ -475,9 +435,16 @@ function StepTermos({ data, update, onAbrirTermos }: {
             onChange={e => update('autorizouUsoImagem', e.target.checked)}
             className="accent-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-gray-800">Autorização de Uso de Imagem</p>
+            <p className="font-semibold text-gray-800">Autorização de Uso de Imagem, Voz e Cessão de Direitos Autorais</p>
             <p className="text-sm text-gray-600 mt-1">
-              Autorizo a FAETEC a utilizar minha imagem, nome e receita para fins institucionais e divulgação nos canais oficiais da rede.
+              Autorizo, gratuitamente e em caráter exclusivo, irrevogável, irretratável, definitivo e universal, a divulgação
+              do meu nome, imagem, voz e da receita/prato enviados, e cedo à FAETEC os direitos autorais patrimoniais
+              decorrentes da minha participação, nos termos do art. 93 da Lei nº 14.133/2021 (
+              <button type="button" onClick={e => { e.preventDefault(); onAbrirTermos(); }}
+                className="text-orange-600 underline font-semibold hover:text-orange-700">
+                ver detalhes completos
+              </button>
+              ).
             </p>
           </div>
         </label>
@@ -499,10 +466,25 @@ function StepTermos({ data, update, onAbrirTermos }: {
             </p>
           </div>
         </label>
+
+        <label className={`flex gap-3 p-4 rounded-xl border-2 cursor-pointer transition
+          ${data.declarouSemParentesco ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-orange-200'}`}>
+          <input type="checkbox" checked={data.declarouSemParentesco}
+            onChange={e => update('declarouSemParentesco', e.target.checked)}
+            className="accent-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-800">Declaração de Ausência de Parentesco</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Declaro, sob as penas da lei, que não sou cônjuge, ascendente, descendente ou parente até o 2º grau de
+              colaboradores/funcionários da FAETEC vinculados à organização do Concurso, nem de membros das
+              Comissões Julgadoras.
+            </p>
+          </div>
+        </label>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        💡 <strong>Lembrete:</strong> Você pode salvar agora e editar sua inscrição depois, enquanto o prazo estiver aberto.
+        💡 <strong>Lembrete:</strong> Você pode salvar agora e editar sua receita depois, enquanto o prazo estiver aberto.
       </div>
     </div>
   );

@@ -48,15 +48,16 @@ public class AdminController : ControllerBase
                 unidade = i.Candidato.UnidadeEscolar,
                 diretor = i.Candidato.NomeDiretor,
                 matricula = i.Candidato.Matricula,
-                cargo = i.Candidato.Cargo
+                cargo = i.Candidato.Cargo,
+                comprovante = i.Candidato.ComprovanteVinculo
             },
             receita = new
             {
                 nome = i.NomeReceita,
+                tipo = i.TipoReceita,
                 descricao = i.Descricao,
                 modoPreparo = i.ModoPreparo,
-                foto = i.FotoReceita,
-                comprovante = i.ComprovanteVinculo
+                foto = i.FotoReceita
             },
             ingredientes = i.Ingredientes.Select(ii => new
             {

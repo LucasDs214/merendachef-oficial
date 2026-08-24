@@ -15,14 +15,29 @@ export interface Ingrediente {
   unidadeMedida: string;
 }
 
-export interface WizardData {
+// Edital, item 4.5
+export type TipoReceita = 'PratoPrincipal' | 'Acompanhamento' | 'PratoPrincipalEAcompanhamento';
+
+export const TIPO_RECEITA_LABEL: Record<TipoReceita, string> = {
+  PratoPrincipal: 'Prato Principal',
+  Acompanhamento: 'Acompanhamento',
+  PratoPrincipalEAcompanhamento: 'Prato Principal + Acompanhamento',
+};
+
+// Dados funcionais + comprovante — preenchidos uma única vez em /completar-cadastro,
+// não fazem mais parte do wizard de receita.
+export interface PerfilData {
   unidadeEscolar: string;
   nomeDiretor: string;
   matricula: string;
   cargo: string;
   telefone: string;
   comprovanteVinculo: File | null;
+}
+
+export interface WizardData {
   nomeReceita: string;
+  tipoReceita: TipoReceita | '';
   descricao: string;
   modoPreparo: string;
   fotoReceita: File | null;
@@ -30,15 +45,16 @@ export interface WizardData {
   aceitouLgpd: boolean;
   autorizouUsoImagem: boolean;
   aceitouTermosUso: boolean;
+  declarouSemParentesco: boolean;
 }
 
 export interface InscricaoAdmin {
   id: string;
   candidato: {
     nome: string; cpf: string; email: string;
-    unidade: string; diretor: string; matricula: string; cargo: string;
+    unidade: string; diretor: string; matricula: string; cargo: string; comprovante: string;
   };
-  receita: { nome: string; descricao: string; foto?: string; comprovante: string };
+  receita: { nome: string; tipo: TipoReceita | ''; descricao: string; foto?: string };
   ingredientes: Array<{ id: number; nome: string; categoria: string; isInNatura: boolean }>;
   status: 'Pendente' | 'Habilitada' | 'Eliminada';
   motivoEliminacao?: string;

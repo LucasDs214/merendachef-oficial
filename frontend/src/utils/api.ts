@@ -96,10 +96,17 @@ export const authApi = {
 export const inscricaoApi = {
   enviar: (formData: FormData) =>
     api.post('/api/inscricoes', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  atualizar: (formData: FormData) =>
-    api.put('/api/inscricoes/minha', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  minha: () => api.get('/api/inscricoes/minha'),
+  atualizar: (id: string, formData: FormData) =>
+    api.put(`/api/inscricoes/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  minhas: () => api.get('/api/inscricoes/minhas'),
   ingredientes: () => api.get('/api/inscricoes/ingredientes'),
+};
+
+// Perfil do candidato (dados funcionais + comprovante — preenchidos uma vez, fora do wizard de receita)
+export const candidatoApi = {
+  getPerfil: () => api.get('/api/candidatos/perfil'),
+  atualizarPerfil: (formData: FormData) =>
+    api.put('/api/candidatos/perfil', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 // Admin

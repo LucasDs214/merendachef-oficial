@@ -118,7 +118,7 @@ public class SmtpEmailService : IEmailService
             </div>
             <div style='padding:30px;background:#fff'>
                 <h2>🏆 Parabéns, {nome}!</h2>
-                <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 12 melhores!</p>
+                <p>Sua receita <strong>{nomeReceita}</strong> foi selecionada entre as 20 melhores!</p>
                 <div style='background:#fff8f0;border:2px solid #e85d24;padding:20px;border-radius:8px;margin:20px 0'>
                     <p style='margin:5px 0'><strong>📅 Data:</strong> {data:dd/MM/yyyy 'às' HH:mm} (horário de Brasília)</p>
                     <p style='margin:5px 0'><strong>📍 Local:</strong> {local}</p>
