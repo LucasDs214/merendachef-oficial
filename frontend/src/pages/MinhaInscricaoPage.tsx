@@ -112,7 +112,7 @@ export function MinhaInscricaoPage() {
             ← Voltar à lista
           </button>
         )}
-        <button onClick={() => navigate('/completar-cadastro')} className="text-sm text-gray-500 hover:text-orange-600 hidden sm:block">
+        <button onClick={() => navigate('/completar-cadastro')} className="text-sm text-gray-500 hover:text-orange-600">
           👤 Meus Dados
         </button>
         <span className="text-sm text-gray-600 hidden sm:block">Olá, {nome}</span>
