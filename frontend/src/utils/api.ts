@@ -121,6 +121,8 @@ export const adminApi = {
     api.patch(`/api/admin/inscricoes/${id}/notas`, notas),
   ranking: () =>
     api.get('/api/admin/ranking'),
+  candidatosSemReceita: () =>
+    api.get('/api/admin/candidatos-sem-receita'),
   convocar: (id: string, dados: object) =>
     api.patch(`/api/admin/inscricoes/${id}/convocar`, dados),
   listarAdmins: () =>

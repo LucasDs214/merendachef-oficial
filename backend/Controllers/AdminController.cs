@@ -83,6 +83,30 @@ public class AdminController : ControllerBase
         }));
     }
 
+    // Candidatos que se cadastraram (com login ativo) mas ainda não enviaram nenhuma receita —
+    // útil para a organizadora entrar em contato antes do prazo de inscrições encerrar (item 6 do Edital).
+    [HttpGet("candidatos-sem-receita")]
+    public async Task<IActionResult> CandidatosSemReceita()
+    {
+        var candidatos = await _db.Candidatos
+            .Where(c => !c.Inscricoes.Any())
+            .OrderByDescending(c => c.CriadoEm)
+            .ToListAsync();
+
+        return Ok(candidatos.Select(c => new
+        {
+            id = c.Id,
+            nome = c.Nome,
+            cpf = MaskCpf(c.Cpf),
+            email = c.Email,
+            telefone = c.Telefone,
+            unidadeEscolar = c.UnidadeEscolar,
+            nomeDiretor = c.NomeDiretor,
+            cadastroCompleto = c.CadastroCompleto,
+            criadoEm = c.CriadoEm
+        }));
+    }
+
     [HttpPatch("inscricoes/{id:guid}/habilitar")]
     public async Task<IActionResult> Habilitar(Guid id)
     {

@@ -5,7 +5,19 @@ import type { InscricaoAdmin, RankingItem } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-type Tab = 'inscricoes' | 'ranking' | 'admins' | 'configuracoes';
+type Tab = 'inscricoes' | 'ranking' | 'sem-receita' | 'admins' | 'configuracoes';
+
+interface CandidatoSemReceita {
+  id: string;
+  nome: string;
+  cpf: string;
+  email: string;
+  telefone: string;
+  unidadeEscolar: string;
+  nomeDiretor: string;
+  cadastroCompleto: boolean;
+  criadoEm: string;
+}
 
 interface AdminItem {
   id: string;
@@ -32,6 +44,7 @@ export function AdminPanel() {
   const [inscricoes, setInscricoes] = useState<InscricaoAdmin[]>([]);
   const [todasInscricoes, setTodasInscricoes] = useState<InscricaoAdmin[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
+  const [semReceita, setSemReceita] = useState<CandidatoSemReceita[]>([]);
   const [admins, setAdmins] = useState<AdminItem[]>([]);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,6 +82,11 @@ export function AdminPanel() {
     setAdmins(res.data);
   };
 
+  const carregarSemReceita = async () => {
+    const res = await adminApi.candidatosSemReceita();
+    setSemReceita(res.data);
+  };
+
   const carregarConfig = async () => {
     try {
       const res = await adminApi.getConfiguracoes();
@@ -97,6 +115,7 @@ export function AdminPanel() {
 
   useEffect(() => { carregar(); }, [filtroStatus]);
   useEffect(() => { if (tab === 'ranking') carregarRanking(); }, [tab]);
+  useEffect(() => { if (tab === 'sem-receita') carregarSemReceita(); }, [tab]);
   useEffect(() => { if (tab === 'admins') carregarAdmins(); }, [tab]);
   useEffect(() => { if (tab === 'configuracoes') carregarConfig(); }, [tab]);
 
@@ -206,11 +225,11 @@ export function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-2 mb-6 flex-wrap">
-          {(['inscricoes', 'ranking', 'admins', 'configuracoes'] as Tab[]).map(t => (
+          {(['inscricoes', 'ranking', 'sem-receita', 'admins', 'configuracoes'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-5 py-2.5 rounded-lg font-semibold transition
                 ${tab === t ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}>
-              {t === 'inscricoes' ? '📋 Inscrições' : t === 'ranking' ? '🏆 Ranking' : t === 'admins' ? '👤 Admins' : '⚙️ Configurações'}
+              {t === 'inscricoes' ? '📋 Inscrições' : t === 'ranking' ? '🏆 Ranking' : t === 'sem-receita' ? '📵 Sem Receita' : t === 'admins' ? '👤 Admins' : '⚙️ Configurações'}
             </button>
           ))}
         </div>
@@ -298,6 +317,57 @@ export function AdminPanel() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Sem Receita */}
+        {tab === 'sem-receita' && (
+          <div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-sm text-amber-800">
+              💡 Candidatos que criaram conta no sistema mas ainda não enviaram nenhuma receita.
+              Vale entrar em contato antes do prazo de inscrições encerrar (item 6 do Edital).
+            </div>
+            {semReceita.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">
+                🎉 Todo mundo que se cadastrou já enviou pelo menos uma receita!
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {semReceita.map(c => (
+                  <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-bold text-gray-800">{c.nome}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+                            ${c.cadastroCompleto ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                            {c.cadastroCompleto ? 'Cadastro completo, sem receita' : 'Cadastro incompleto'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500">{c.unidadeEscolar || '(unidade não informada)'}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Conta criada em {formatarData(c.criadoEm)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {c.telefone && (
+                          <a href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                            className="text-xs font-semibold px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition">
+                            📱 WhatsApp
+                          </a>
+                        )}
+                        {c.email && (
+                          <a href={`mailto:${c.email}`}
+                            className="text-xs font-semibold px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition">
+                            ✉️ E-mail
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
