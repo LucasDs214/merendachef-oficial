@@ -51,7 +51,7 @@ export interface WizardData {
 export interface InscricaoAdmin {
   id: string;
   candidato: {
-    nome: string; cpf: string; email: string;
+    id: string; nome: string; cpf: string; email: string;
     unidade: string; diretor: string; matricula: string; cargo: string; comprovante: string;
   };
   receita: { nome: string; tipo: TipoReceita | ''; descricao: string; foto?: string };

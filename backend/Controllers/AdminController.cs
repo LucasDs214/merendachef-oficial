@@ -41,6 +41,7 @@ public class AdminController : ControllerBase
             id = i.Id,
             candidato = new
             {
+                id = i.Candidato.Id,
                 nome = i.Candidato.Nome,
                 cpf = MaskCpf(i.Candidato.Cpf),
                 email = i.Candidato.Email,
@@ -279,7 +280,7 @@ public async Task<IActionResult> Convocar(Guid id, [FromBody] ConvocarDto dto)
             return BadRequest(new { error = erro });
 
         candidato.SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
-        candidato.PrimeiroAcesso = false;
+        candidato.PrimeiroAcesso = true;
         await _db.SaveChangesAsync();
         return Ok(new { message = "Senha resetada com sucesso." });
     }

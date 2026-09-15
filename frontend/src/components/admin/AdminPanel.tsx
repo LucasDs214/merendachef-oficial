@@ -56,6 +56,8 @@ export function AdminPanel() {
   const [adminMsg, setAdminMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
   const [loadingAdmin, setLoadingAdmin] = useState(false);
   const [modalArquivo, setModalArquivo] = useState<{ url: string; tipo: 'imagem' | 'pdf' } | null>(null);
+  const [resultadoReset, setResultadoReset] = useState<{ nome: string; senha: string } | null>(null);
+  const [loadingReset, setLoadingReset] = useState(false);
   const [config, setConfig] = useState({ prazoEdicao: '', inscricoesAbertas: true });
   const [configMsg, setConfigMsg] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -182,6 +184,36 @@ export function AdminPanel() {
     const url = `${API_URL}/uploads/${caminho}`;
     const ext = caminho.split('.').pop()?.toLowerCase();
     setModalArquivo({ url, tipo: ext === 'pdf' ? 'pdf' : 'imagem' });
+  };
+
+  // Edital: candidatos que esquecem a senha e não recebem o e-mail de reset (SMTP não é garantido)
+  // precisam de um caminho alternativo — o admin gera uma senha temporária e repassa manualmente.
+  const gerarSenhaTemporaria = (): string => {
+    const maiusculas = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const minusculas = 'abcdefghijkmnpqrstuvwxyz';
+    const numeros = '23456789';
+    const simbolos = '!@#$%&*';
+    const todos = maiusculas + minusculas + numeros + simbolos;
+    let senha =
+      maiusculas[Math.floor(Math.random() * maiusculas.length)] +
+      minusculas[Math.floor(Math.random() * minusculas.length)] +
+      numeros[Math.floor(Math.random() * numeros.length)] +
+      simbolos[Math.floor(Math.random() * simbolos.length)];
+    for (let i = 0; i < 6; i++) senha += todos[Math.floor(Math.random() * todos.length)];
+    return senha.split('').sort(() => Math.random() - 0.5).join('');
+  };
+
+  const resetarSenha = async (candidatoId: string, nomeCandidato: string) => {
+    if (!window.confirm(`Gerar uma nova senha temporária para ${nomeCandidato}? A senha atual dele(a) deixará de funcionar imediatamente.`)) return;
+    setLoadingReset(true);
+    try {
+      const novaSenha = gerarSenhaTemporaria();
+      await adminApi.resetarSenhaCandidato(candidatoId, novaSenha);
+      setResultadoReset({ nome: nomeCandidato, senha: novaSenha });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      alert(err.response?.data?.error || 'Erro ao resetar senha.');
+    } finally { setLoadingReset(false); }
   };
 
   const statusBadge = (s: string) => {
@@ -362,6 +394,10 @@ export function AdminPanel() {
                             ✉️ E-mail
                           </a>
                         )}
+                        <button onClick={() => resetarSenha(c.id, c.nome)} disabled={loadingReset}
+                          className="text-xs font-semibold px-3 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-100 transition disabled:opacity-50">
+                          🔑 Resetar Senha
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -512,13 +548,18 @@ export function AdminPanel() {
               <div className="bg-gray-50 rounded-xl p-4">
                 <h3 className="font-bold text-gray-700 mb-3">👤 Dados do Candidato</h3>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                  {Object.entries(selected.candidato).map(([k, v]) => (
+                  {Object.entries(selected.candidato).filter(([k]) => k !== 'id').map(([k, v]) => (
                     <div key={k} className="flex flex-col">
                       <span className="text-xs text-gray-400 mb-0.5">{LABELS[k] || k}</span>
                       <span className="font-medium text-gray-800">{v || '—'}</span>
                     </div>
                   ))}
                 </div>
+                <button onClick={() => resetarSenha(selected.candidato.id, selected.candidato.nome)}
+                  disabled={loadingReset}
+                  className="mt-3 w-full py-2.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg text-sm font-semibold hover:bg-purple-100 transition disabled:opacity-50">
+                  🔑 Resetar Senha do Candidato
+                </button>
               </div>
 
               {/* Receita */}
@@ -694,6 +735,33 @@ export function AdminPanel() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Senha Resetada */}
+      {resultadoReset && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
+            <div className="text-4xl mb-3">🔑</div>
+            <h3 className="text-lg font-bold text-gray-800 mb-1">Nova senha gerada</h3>
+            <p className="text-sm text-gray-500 mb-4">para <strong>{resultadoReset.nome}</strong></p>
+            <div className="bg-gray-100 rounded-xl p-4 mb-4">
+              <p className="text-2xl font-black tracking-widest text-blue-900 select-all">{resultadoReset.senha}</p>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Envie esta senha ao candidato por WhatsApp, telefone ou pessoalmente. No próximo login, ele(a) será solicitado(a) a criar uma nova senha.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => navigator.clipboard.writeText(resultadoReset.senha)}
+                className="flex-1 py-2.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold hover:bg-blue-200">
+                📋 Copiar
+              </button>
+              <button onClick={() => setResultadoReset(null)}
+                className="flex-1 py-2.5 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800">
+                Fechar
+              </button>
             </div>
           </div>
         </div>
