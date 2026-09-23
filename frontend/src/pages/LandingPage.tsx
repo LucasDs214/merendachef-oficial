@@ -11,6 +11,21 @@ export function LandingPage() {
   );
 }
 
+// Lista de documentos do edital exibidos no dropdown "Baixar Edital".
+//
+// COMO PUBLICAR UMA NOVA RETIFICAÇÃO (repita este processo em App.tsx também):
+// 1. Suba o PDF em frontend/public/, com o nome edital-merendachef-retificacao-N.pdf
+// 2. Adicione uma linha nova no array abaixo, seguindo o padrão das existentes
+// 3. git add / commit / push, depois "Pull and redeploy" no Portainer (não precisa mexer no banco)
+const EDITAL_DOCUMENTOS = [
+  { label: 'Edital Original', arquivo: '/edital-merendachef.pdf' },
+  { label: 'Retificação nº 1', arquivo: '/edital-merendachef-retificacao-1.pdf' },
+];
+
+const editalMenuHtml = EDITAL_DOCUMENTOS.map(doc =>
+  `<a href="${doc.arquivo}" target="_blank" rel="noopener noreferrer">📄 ${doc.label}</a>`
+).join('');
+
 const landingHtml = `
 <style>
   :root{
@@ -92,6 +107,12 @@ const landingHtml = `
   .social a{color:#fff;font-size:28px;line-height:1;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;opacity:.96;}
   .social a:hover{opacity:.75;}
   .social .linkedin{font-size:23px;font-weight:900;}
+  .edital-dropdown-wrap{position:relative;display:inline-block;}
+  .edital-dropdown-wrap summary{list-style:none;cursor:pointer;}
+  .edital-dropdown-wrap summary::-webkit-details-marker{display:none;}
+  .edital-menu{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);background:#fff;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:8px;min-width:230px;z-index:40;text-align:left;}
+  .edital-menu a{display:block;padding:10px 14px;border-radius:6px;font-size:14px;color:#333;font-weight:600;white-space:nowrap;}
+  .edital-menu a:hover{background:#f3f4f6;}
   @media(max-width:1200px){.container{width:min(1050px,calc(100% - 70px));}.header-inner{width:min(1120px,calc(100% - 60px));}.logo-merenda-img{height:38px;max-width:240px;}.hero{height:520px;}.hero-copy{width:560px;margin-top:20px;margin-left:0;}.hero-copy h1{font-size:36px;}.hero-copy p{font-size:15px;max-width:560px;}.btn{min-width:116px;height:31px;font-size:12px;letter-spacing:0;}.btn-row{gap:34px;}.cards{width:min(760px,100%);}.card{min-height:280px;padding:16px;}.emoji-icon{width:74px;height:74px;font-size:38px;border-radius:18px;}.card h4{font-size:18px;}.card p{font-size:11px;}.footer{height:78px;}.footer-inner{width:min(1120px,calc(100% - 60px));}.logo-footer{height:54px;}.social{gap:22px;}.social a{font-size:26px;}}
   @media(max-width:920px){:root{--container:720px;}body{font-size:16px;}.container{width:min(var(--container),calc(100% - 32px));}.header{height:auto;padding:8px 0;}.header-inner{width:min(720px,calc(100% - 32px));grid-template-columns:1fr;gap:8px;justify-items:center;}.header-left,.header-center,.header-right{justify-content:center;}.header-center{display:flex;flex-wrap:wrap;gap:10px;}.logo-merenda-img{height:36px;max-width:230px;}.logo-faperj{height:24px;}.logo-faetec-governo{height:28px;}.candidate-btn{font-size:12px;padding:7px 14px;}.hero{height:520px;}.hero::before{background-position:60% bottom;}.hero-copy{width:min(560px,100%);margin-left:0;margin-top:120px;}.hero-copy h1{font-size:34px;}.hero-copy p{font-size:14px;}.cards{grid-template-columns:repeat(2,1fr);width:min(650px,100%);}.purpose-grid,.impact-grid{grid-template-columns:1fr;gap:28px;width:min(650px,calc(100% - 32px));}.meal-photo{width:100%;max-width:500px;margin:0 auto;}.purpose h2,.purpose p{text-align:left;max-width:none;}.diagram{max-width:410px;margin:0 auto;width:100%;}.impact p{max-width:none;}.footer{height:auto;min-height:86px;padding:18px 0;}.footer-inner{width:min(720px,calc(100% - 32px));flex-direction:column;justify-content:center;gap:18px;}.logo-footer{height:54px;}.social{gap:20px;}.social a{font-size:24px;}}
   @media(max-width:620px){body{font-size:15px;}.container{width:min(100% - 26px,var(--container));}.hero{height:auto;min-height:540px;}.hero::before{background-position:62% bottom;}.hero-inner{align-items:flex-end;padding:210px 0 48px;}.hero-copy{width:100%;margin:0;}.hero-copy h1{font-size:29px;}.hero-copy p{font-size:13px;max-width:100%;}.btn-row{gap:14px;flex-wrap:wrap;}.benefits{padding-top:36px;}.cards{grid-template-columns:1fr;width:min(370px,100%);}.card{min-height:auto;}.purpose-grid{width:min(100% - 26px,430px);}.meal-photo{height:220px;}.purpose h2{font-size:23px;}.purpose p{font-size:12px;}.tray{width:310px;height:118px;bottom:-62px;}.steps{padding-top:105px;}.step-list{width:100%;}.impact-grid{width:min(100% - 26px,430px);}.impact h2{font-size:23px;}.diagram{height:265px;}.cta h2{font-size:25px;}.logo-merenda-img{height:34px;max-width:210px;}.footer{min-height:82px;padding:16px 0;}.logo-footer{height:48px;}.social{gap:16px;}.social a{font-size:22px;}}
@@ -221,7 +242,10 @@ const landingHtml = `
         <h2>Mostre seu talento. Torne-se um MerendaChef</h2>
         <div class="btn-row">
           <a class="btn" href="/login">Inscreva-se</a>
-          <a class="btn" id="edital" href="/edital-merendachef.pdf" target="_blank" rel="noopener noreferrer">Baixar Edital</a>
+          <details class="edital-dropdown-wrap" id="edital">
+            <summary class="btn">Baixar Edital ▾</summary>
+            <div class="edital-menu">${editalMenuHtml}</div>
+          </details>
         </div>
       </div>
     </section>

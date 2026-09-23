@@ -10,6 +10,12 @@ import { maskCpf } from './utils/masks';
 import type { Ingrediente } from './types';
 import { LandingPage } from './pages/LandingPage';
 
+// Mesma lista de LandingPage.tsx — ao publicar retificação nova, editar as DUAS listas.
+const EDITAL_DOCUMENTOS = [
+  { label: 'Edital Original', arquivo: '/edital-merendachef.pdf' },
+  { label: 'Retificação nº 1', arquivo: '/edital-merendachef-retificacao-1.pdf' },
+];
+
 // ── Toast ──────────────────────────────────────────────────────
 function Toast({ message, type, onClose }: { message: string; type: 'error' | 'success'; onClose: () => void }) {
   useEffect(() => {
@@ -360,11 +366,20 @@ function LoginPage() {
               🥕 Consultar insumos disponíveis
             </Link>
           </div>
-          <div>
-            <a href="https://www.faetec.rj.gov.br/" target="_blank" rel="noreferrer"
-              className="text-xs text-blue-500 hover:text-blue-700">
-              📋 Saiba mais sobre o concurso e premiações
-            </a>
+          <div className="flex justify-center">
+            <details className="relative inline-block text-left">
+              <summary className="text-xs text-blue-500 hover:text-blue-700 font-medium cursor-pointer">
+                📋 Edital e Retificações
+              </summary>
+              <div className="absolute left-1/2 -translate-x-1/2 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[220px] z-20 text-left">
+                {EDITAL_DOCUMENTOS.map(doc => (
+                  <a key={doc.arquivo} href={doc.arquivo} target="_blank" rel="noreferrer"
+                    className="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                    📄 {doc.label}
+                  </a>
+                ))}
+              </div>
+            </details>
           </div>
           <div>
             <Link to="/admin/login" className="text-xs text-gray-400 hover:text-gray-600">Acesso Administrativo</Link>
